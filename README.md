@@ -63,6 +63,94 @@ Run without Chrome using the built-in mock MCP server:
 npm run smoke
 ```
 
+## Experiment: Native Chrome MCP vs REPL
+
+The core claim of MCP-2-REPL is not that it gives access to more browser
+capabilities than `chrome-devtools-mcp`. The upstream MCP server is still doing
+the real browser work. The claim is that the agent-facing interface changes from
+a remote-control transcript into a programmable runtime.
+
+To make that concrete, this repository includes a small comparison experiment.
+Both variants perform the same browser research task with Chrome DevTools MCP:
+
+1. Open `https://example.com`.
+2. Wait until the expected DOM state is reached.
+3. Extract title, heading, links, and navigation timing.
+4. Inspect console messages and network requests.
+5. Return one structured report.
+
+The native MCP version is modeled as the top-level calls an agent has to drive
+when it talks to `chrome-devtools-mcp` directly:
+
+```text
+examples/chrome-research-task.native.json
+```
+
+The REPL version is the same task expressed as one JavaScript program submitted
+through `eval`:
+
+```text
+examples/chrome-research-task.repl.js
+```
+
+Run the comparison:
+
+```bash
+npm run experiment:chrome
+```
+
+Current result:
+
+| Metric | Native chrome-devtools-mcp | MCP-2-REPL |
+| --- | ---: | ---: |
+| Top-level agent tool calls | 8 | 1 |
+| Agent decision points | 8 | 1 |
+| Agent-facing payload bytes | 1,604 | 1,413 |
+| Where polling lives | agent loop | JavaScript loop |
+| Where errors are handled | agent prompt state | throw/catch in code |
+| Reusable artifact | transcript | script |
+
+The byte count is intentionally not the main result. For small tasks, the REPL
+program can even be similar in size to the native transcript because it carries
+the full reusable logic. The important difference is where control flow lives.
+
+With native `chrome-devtools-mcp`, the agent has to decide after every tool
+result what to do next: poll again, branch, retry, extract, inspect logs, inspect
+network, and merge the final answer. The model's context becomes the control
+plane.
+
+With MCP-2-REPL, the model sends a program. Loops, waits, retries, assertions,
+intermediate variables, helper functions, and final report shaping live in
+JavaScript. The agent still uses Chrome DevTools MCP, but it uses it as a
+library inside a runtime instead of as the outer interaction protocol.
+
+That distinction gets stronger as tasks grow:
+
+- A wait loop stays one `for` loop instead of many repeated tool calls.
+- A retry policy becomes `try/catch` instead of prompt-level bookkeeping.
+- A data extraction pipeline becomes ordinary JavaScript objects and arrays.
+- A successful exploration can be committed as a script and rerun.
+- Helper functions can persist for the evaluator lifetime.
+
+In other words, native MCP exposes browser operations. MCP-2-REPL exposes a
+browser-programming environment.
+
+### Running the Live REPL Variant
+
+If Chrome is available in the environment, the REPL variant can be executed
+against the real `chrome-devtools-mcp` server:
+
+```bash
+node ./src/cli.js \
+  --config ./examples/chrome-devtools.json \
+  --server chrome-devtools \
+  --file ./examples/chrome-research-task.repl.js
+```
+
+The live run still calls `new_page`, `evaluate_script`,
+`list_console_messages`, and `list_network_requests` upstream. The difference is
+that those calls are no longer separate agent turns.
+
 ## Single-tool MCP server
 
 Expose any MCP server back to an agent framework as a single `eval` tool:

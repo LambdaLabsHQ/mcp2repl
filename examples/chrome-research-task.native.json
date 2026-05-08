@@ -1,0 +1,54 @@
+[
+  {
+    "tool": "new_page",
+    "args": {
+      "url": "https://example.com"
+    },
+    "agentDecision": "Start a fresh browser page."
+  },
+  {
+    "tool": "evaluate_script",
+    "args": {
+      "function": "() => ({ readyState: document.readyState, heading: document.querySelector('h1')?.textContent || '' })"
+    },
+    "agentDecision": "Inspect whether the page reached the desired DOM state."
+  },
+  {
+    "tool": "evaluate_script",
+    "args": {
+      "function": "() => ({ readyState: document.readyState, heading: document.querySelector('h1')?.textContent || '' })"
+    },
+    "agentDecision": "Poll again because the previous result might not be ready."
+  },
+  {
+    "tool": "evaluate_script",
+    "args": {
+      "function": "() => ({ readyState: document.readyState, heading: document.querySelector('h1')?.textContent || '' })"
+    },
+    "agentDecision": "Poll again and branch based on the page state."
+  },
+  {
+    "tool": "evaluate_script",
+    "args": {
+      "function": "() => ({ readyState: document.readyState, heading: document.querySelector('h1')?.textContent || '' })"
+    },
+    "agentDecision": "Poll again and decide whether to continue waiting or extract."
+  },
+  {
+    "tool": "evaluate_script",
+    "args": {
+      "function": "() => ({ title: document.title, heading: document.querySelector('h1')?.textContent || '', links: [...document.querySelectorAll('a')].map((a) => ({ text: a.textContent?.trim() || '', href: a.href })), timing: performance.getEntriesByType('navigation')[0]?.toJSON?.() || null })"
+    },
+    "agentDecision": "Extract the structured report once the DOM looks ready."
+  },
+  {
+    "tool": "list_console_messages",
+    "args": {},
+    "agentDecision": "Inspect browser console output."
+  },
+  {
+    "tool": "list_network_requests",
+    "args": {},
+    "agentDecision": "Inspect network activity for failed requests."
+  }
+]

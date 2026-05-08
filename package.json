@@ -10,6 +10,7 @@
   },
   "scripts": {
     "demo:chrome": "node ./src/cli.js --config ./examples/chrome-devtools.json --server chrome-devtools --file ./examples/chrome-demo.js",
+    "experiment:chrome": "node ./examples/compare-chrome-experiment.mjs",
     "smoke": "node ./src/cli.js --mock --eval \"var x = 40; x + 2\" && node ./src/cli.js --mock --file ./examples/mock-demo.js"
   },
   "dependencies": {
