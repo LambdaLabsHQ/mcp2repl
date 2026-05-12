@@ -1,0 +1,29 @@
+Use only the available browser/MCP automation tools. Do not use shell commands, filesystem commands, web search, or external network fetches outside the browser tool.
+
+If the available tool surface includes a tool named `eval`, make exactly one tool call: call `eval` with the JavaScript program below. Do not inspect tools first, do not call eval more than once, and do not call any other top-level tools.
+
+If there is no `eval` tool, solve the same task with the available browser tools.
+
+Open this self-contained page in a fresh browser tab:
+
+DATA_URL_PLACEHOLDER
+
+JavaScript program to use when `eval` is available:
+
+```js
+EVAL_PROGRAM_PLACEHOLDER
+```
+
+Wait until the page reports that the probe is ready. Then return only compact JSON with these fields:
+
+- title: document.title
+- heading: the h1 text
+- status: the #status text
+- items: array of the .item text values
+- computedTotal: Number(window.__probe.total)
+- linkHost: hostname of the first link
+- consoleMessages: number of console messages observed by the browser tool
+- networkRequests: number of network requests observed by the browser tool
+- readyInvariant: true only if title is "Harness Probe Ready", status is "ready: 42", items are ["alpha:7","beta:14","gamma:21"], and computedTotal is 42
+
+Do not explain the process. Return the JSON object only.

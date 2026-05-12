@@ -151,6 +151,41 @@ That distinction gets stronger as tasks grow:
 In other words, native MCP exposes browser operations. MCP-2-REPL exposes a
 browser-programming environment.
 
+### Codex Token Comparison
+
+This repository also includes a live Codex non-interactive experiment that runs
+the same prompt twice:
+
+1. Codex talks directly to `chrome-devtools-mcp`.
+2. Codex talks to `mcp2repl-server`, which wraps the same `chrome-devtools-mcp`
+   server as a single `eval` tool.
+
+The task opens a self-contained async browser probe page, waits until it becomes
+ready, extracts DOM state, console diagnostics, and network diagnostics, then
+returns compact JSON. The native run has to keep browser polling and result
+assembly at the agent/tool-call layer. The REPL run can put the polling loop and
+data shaping inside JavaScript.
+
+Run it with:
+
+```bash
+npm run experiment:codex-tokens
+```
+
+Optional model override:
+
+```bash
+CODEX_MODEL=gpt-5.4-mini npm run experiment:codex-tokens
+```
+
+The script writes artifacts under `.tmp/codex-token-comparison/<timestamp>/`:
+
+- `prompt.txt` — the exact prompt used for both runs.
+- `native-chrome-mcp.jsonl` — Codex JSONL event stream for direct Chrome MCP.
+- `mcp2repl-wrapped-chrome-mcp.jsonl` — Codex JSONL event stream for wrapped Chrome MCP.
+- `*.result.txt` — final answer from each run.
+- `summary.md` — token totals and final-answer comparison.
+
 ### Running the Live REPL Variant
 
 If Chrome is available in the environment, the REPL variant can be executed

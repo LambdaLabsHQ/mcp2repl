@@ -15,6 +15,7 @@
   "scripts": {
     "demo:chrome": "node ./src/cli.js --config ./examples/chrome-devtools.json --server chrome-devtools --file ./examples/chrome-demo.js",
     "experiment:chrome": "node ./examples/compare-chrome-experiment.mjs",
+    "experiment:codex-tokens": "node ./examples/codex-token-comparison/run.mjs",
     "smoke": "node ./src/cli.js --mock --eval \"var x = 40; x + 2\" && node ./src/cli.js --mock --eval \"await mcp.call('math.add', { a: 20, b: 22 })\" && node ./src/cli.js --mock --file ./examples/mock-demo.js && node ./src/cli.js --config ./examples/multi-mock-repl.json --eval \"await mcp.mock_a.eval({ code: 'await mcp.call(\\\"math.add\\\", { a: 20, b: 22 })' })\"",
     "test": "npm run smoke"
   },

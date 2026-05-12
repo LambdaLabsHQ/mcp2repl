@@ -159,15 +159,26 @@ export function simplifyToolResult(result) {
   if (result.content.length === 1) {
     const item = result.content[0];
     if (item.type === "text") {
-      try {
-        return JSON.parse(item.text);
-      } catch {
-        return item.text;
-      }
+      return parseStructuredText(item.text);
     }
   }
 
   return result;
+}
+
+function parseStructuredText(text) {
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  const fencedJson = String(text).match(/```json\s*([\s\S]*?)\s*```/i);
+  if (fencedJson) {
+    try {
+      return JSON.parse(fencedJson[1]);
+    } catch {}
+  }
+
+  return text;
 }
 
 export function createMockClient() {
