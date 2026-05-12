@@ -2,8 +2,6 @@ import vm from "node:vm";
 import util from "node:util";
 import { createToolFacade } from "./mcp-client.js";
 
-const ASYNC_KEYWORDS = /\bawait\b|\bfor\s+await\b/;
-
 export class McpRepl {
   constructor(client, options = {}) {
     this.client = client;
@@ -39,11 +37,19 @@ export class McpRepl {
       listTools: () => facade.list.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        inputSchema: tool.inputSchema
+        inputSchema: tool.inputSchema,
+        server: tool._mcp2repl?.server,
+        upstreamName: tool._mcp2repl?.name
       }))
     };
+    Object.assign(mcp, facade.byServer);
 
     this.context.mcp = mcp;
+    this.context.api = {
+      callTool: (server, name, args = {}) => facade.callServerTool(server, name, args),
+      listTools: mcp.listTools,
+      describeTool: (server, name) => facade.describeTool(server, name)
+    };
     this.context.tools = facade.bySafeName;
     this.context.inspect = (value) => util.inspect(value, {
       depth: 8,
@@ -68,21 +74,22 @@ export class McpRepl {
   }
 
   #compile(code, timeout) {
-    if (ASYNC_KEYWORDS.test(code)) {
-      return new vm.Script(
-        `(async () => {\n${code}\n})()`,
-        { timeout, displayErrors: true }
-      );
-    }
+    const candidates = [
+      code,
+      `(async () => (${code}))()`,
+      `(async () => {\n${code}\n})()`
+    ];
 
-    try {
-      return new vm.Script(code, { timeout, displayErrors: true });
-    } catch (error) {
-      return new vm.Script(
-        `(async () => {\n${code}\n})()`,
-        { timeout, displayErrors: true }
-      );
+    let lastSyntaxError;
+    for (const candidate of candidates) {
+      try {
+        return new vm.Script(candidate, { timeout, displayErrors: true });
+      } catch (error) {
+        if (error?.name !== "SyntaxError") throw error;
+        lastSyntaxError = error;
+      }
     }
+    throw lastSyntaxError;
   }
 }
 

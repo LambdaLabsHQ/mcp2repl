@@ -34,14 +34,72 @@ export async function connectStdioMcp(spec) {
   };
 }
 
+export async function connectStdioMcps(specs) {
+  const entries = [];
+
+  for (const [serverName, spec] of Object.entries(specs)) {
+    const connected = await connectStdioMcp(spec);
+    const listed = await connected.client.listTools();
+    entries.push({
+      serverName,
+      connected,
+      tools: listed.tools ?? []
+    });
+  }
+
+  const toolMap = new Map();
+  for (const entry of entries) {
+    for (const tool of entry.tools) {
+      const fullName = `${entry.serverName}.${tool.name}`;
+      toolMap.set(fullName, { entry, tool });
+    }
+  }
+
+  return {
+    client: {
+      async listTools() {
+        return {
+          tools: entries.flatMap((entry) => entry.tools.map((tool) => ({
+            ...tool,
+            name: `${entry.serverName}.${tool.name}`,
+            _mcp2repl: {
+              server: entry.serverName,
+              name: tool.name
+            }
+          })))
+        };
+      },
+      async callTool(request) {
+        const fullName = request.name ?? request.params?.name;
+        const match = toolMap.get(fullName);
+        if (!match) {
+          throw new Error(`Unknown MCP tool: ${fullName}`);
+        }
+        return match.entry.connected.client.callTool({
+          name: match.tool.name,
+          arguments: request.arguments ?? request.params?.arguments ?? {}
+        });
+      }
+    },
+    close: async () => {
+      await Promise.all(entries.map((entry) => entry.connected.close()));
+    }
+  };
+}
+
 export async function createToolFacade(client) {
   const listed = await client.listTools();
   const tools = listed.tools ?? [];
   const byName = {};
   const bySafeName = {};
+  const byServer = {};
+  const toolByServerAndName = new Map();
   const collisions = new Map();
+  const serverAliases = new Map();
+  const serverAliasCounts = new Map();
 
   for (const tool of tools) {
+    const meta = tool._mcp2repl;
     byName[tool.name] = async (args = {}) => {
       const result = await client.callTool({
         name: tool.name,
@@ -55,13 +113,44 @@ export async function createToolFacade(client) {
     collisions.set(safe, count + 1);
     if (count > 0) safe = `${safe}_${count + 1}`;
     bySafeName[safe] = byName[tool.name];
+
+    if (meta?.server && meta?.name) {
+      const safeServer = getStableSafeServerName(meta.server, serverAliases, serverAliasCounts);
+
+      byServer[safeServer] ??= {};
+      byServer[safeServer][safeIdentifier(meta.name)] = byName[tool.name];
+      toolByServerAndName.set(`${meta.server}\u0000${meta.name}`, byName[tool.name]);
+    }
   }
 
   return {
     list: tools,
     byName,
-    bySafeName
+    bySafeName,
+    byServer,
+    callServerTool: async (server, name, args = {}) => {
+      const fn = toolByServerAndName.get(`${server}\u0000${name}`);
+      if (!fn) throw new Error(`Unknown MCP tool: ${server}.${name}`);
+      return fn(args);
+    },
+    describeTool: (server, name) => tools.find((tool) => {
+      const meta = tool._mcp2repl;
+      if (meta) return meta.server === server && meta.name === name;
+      return server == null && tool.name === name;
+    })
   };
+}
+
+function getStableSafeServerName(serverName, aliases, counts) {
+  const existing = aliases.get(serverName);
+  if (existing) return existing;
+
+  const base = safeIdentifier(serverName);
+  const count = counts.get(base) ?? 0;
+  counts.set(base, count + 1);
+  const alias = count === 0 ? base : `${base}_${count + 1}`;
+  aliases.set(serverName, alias);
+  return alias;
 }
 
 export function simplifyToolResult(result) {

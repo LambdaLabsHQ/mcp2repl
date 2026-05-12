@@ -4,11 +4,20 @@ export async function loadConfig(path, serverName) {
   const json = JSON.parse(await fs.readFile(path, "utf8"));
 
   if (json.mcpServers) {
-    const name = serverName ?? Object.keys(json.mcpServers)[0];
-    if (!name || !json.mcpServers[name]) {
+    if (serverName) {
+      if (!json.mcpServers[serverName]) {
+        throw new Error(`MCP server not found in config: ${serverName}`);
+      }
+      return { name: serverName, spec: json.mcpServers[serverName] };
+    }
+
+    const specs = Object.fromEntries(
+      Object.entries(json.mcpServers).filter(([, spec]) => !spec.disabled)
+    );
+    if (Object.keys(specs).length === 0) {
       throw new Error(`MCP server not found in config: ${serverName}`);
     }
-    return { name, spec: json.mcpServers[name] };
+    return { specs };
   }
 
   return { name: serverName ?? "default", spec: json };
@@ -22,6 +31,7 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--mock") args.mock = true;
+    else if (arg === "--help" || arg === "-h") args.help = true;
     else if (arg === "--config") args.config = argv[++i];
     else if (arg === "--server") args.server = argv[++i];
     else if (arg === "--command") args.command = argv[++i];

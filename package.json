@@ -1,7 +1,6 @@
 {
   "name": "@lambda-labs/mcp2repl",
   "version": "0.0.1",
-  "private": true,
   "type": "module",
   "description": "Turn any stdio MCP server into a persistent JavaScript REPL with a single eval surface.",
   "bin": {
@@ -11,8 +10,15 @@
   "scripts": {
     "demo:chrome": "node ./src/cli.js --config ./examples/chrome-devtools.json --server chrome-devtools --file ./examples/chrome-demo.js",
     "experiment:chrome": "node ./examples/compare-chrome-experiment.mjs",
-    "smoke": "node ./src/cli.js --mock --eval \"var x = 40; x + 2\" && node ./src/cli.js --mock --file ./examples/mock-demo.js"
+    "smoke": "node ./src/cli.js --mock --eval \"var x = 40; x + 2\" && node ./src/cli.js --mock --eval \"await mcp.call('math.add', { a: 20, b: 22 })\" && node ./src/cli.js --mock --file ./examples/mock-demo.js && node ./src/cli.js --config ./examples/multi-mock-repl.json --eval \"await mcp.mock_a.eval({ code: 'await mcp.call(\\\"math.add\\\", { a: 20, b: 22 })' })\"",
+    "test": "npm run smoke"
   },
+  "keywords": [
+    "mcp",
+    "repl",
+    "model-context-protocol",
+    "javascript"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.22.0"
   },

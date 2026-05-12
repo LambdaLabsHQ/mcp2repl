@@ -6,7 +6,7 @@ import {
   ListToolsRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig, parseArgs } from "./config.js";
-import { connectStdioMcp, createMockClient } from "./mcp-client.js";
+import { connectStdioMcp, connectStdioMcps, createMockClient } from "./mcp-client.js";
 import { formatResult, McpRepl } from "./evaluator.js";
 
 function wrapConnectedClient(connected) {
@@ -20,8 +20,10 @@ function wrapConnectedClient(connected) {
 async function createClient(args) {
   if (args.mock) return createMockClient();
   if (args.config) {
-    const { spec } = await loadConfig(args.config, args.server);
-    const connected = await connectStdioMcp(spec);
+    const loaded = await loadConfig(args.config, args.server);
+    const connected = loaded.spec
+      ? await connectStdioMcp(loaded.spec)
+      : await connectStdioMcps(loaded.specs);
     return wrapConnectedClient(connected);
   }
   if (args.command) {
@@ -62,7 +64,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           code: {
             type: "string",
-            description: "JavaScript source to evaluate. Use mcp.call(name,args), mcp.tools[name](args), or tools.safeName(args)."
+            description: "JavaScript source to evaluate. Use mcp.call(name,args), mcp.<server>.<tool>(args), mcp.tools[name](args), tools.safeName(args), or api.callTool(server,tool,args)."
           }
         },
         required: ["code"]

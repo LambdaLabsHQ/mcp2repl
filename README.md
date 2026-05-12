@@ -32,19 +32,35 @@ const title = await tools.evaluate_script({ function: "() => document.title" });
 return { title };
 ```
 
-## Install
+## Install / Run
 
 ```bash
-cd tools/mcp2repl
+npx @lambda-labs/mcp2repl --config ./mcp.json
+```
+
+From a local checkout:
+
+```bash
 npm install
+npm run smoke
 ```
 
 ## CLI eval
 
 ```bash
-node ./src/cli.js --config ./examples/chrome-devtools.json --server chrome-devtools \
+npx @lambda-labs/mcp2repl --config ./examples/chrome-devtools.json --server chrome-devtools \
   --eval 'await mcp.call("new_page", { url: "https://example.com" }); await tools.evaluate_script({ function: "() => document.title" })'
 ```
+
+When the config contains multiple `mcpServers`, MCP-2-REPL connects to all
+enabled servers by default and exposes namespaced functions:
+
+```js
+await mcp.chrome_devtools.new_page({ url: "https://example.com" });
+await api.callTool("chrome-devtools", "evaluate_script", { function: "() => document.title" });
+```
+
+Use `--server <name>` to connect only one configured server.
 
 Run the Chrome demo:
 
@@ -156,7 +172,7 @@ that those calls are no longer separate agent turns.
 Expose any MCP server back to an agent framework as a single `eval` tool:
 
 ```bash
-node ./src/server.js --config ./examples/chrome-devtools.json --server chrome-devtools
+npx -p @lambda-labs/mcp2repl mcp2repl-server --config ./examples/chrome-devtools.json --server chrome-devtools
 ```
 
 The downstream agent sees one tool:
@@ -172,10 +188,21 @@ conditions, helper functions, retries, and batching in-process.
 
 - `mcp.call(name, args)` calls any upstream MCP tool by exact name.
 - `mcp.tools[name](args)` calls any upstream MCP tool by exact name.
+- `mcp.<server>.<tool>(args)` calls tools through server namespaces when a
+  Claude Desktop-style `mcpServers` config is used.
 - `tools.safeName(args)` calls tools through identifier-safe aliases, for example `evaluate_script`.
+- `api.callTool(server, tool, args)` calls a namespaced MCP tool by exact server
+  and upstream tool names.
 - `mcp.listTools()` returns upstream tool metadata.
+- `api.describeTool(server, tool)` returns one upstream tool's metadata.
 - `sleep(ms)` returns a promise that resolves after `ms`.
 - `inspect(value)` formats complex values.
+
+## Security
+
+MCP-2-REPL evaluates JavaScript with the permissions of the current Node.js
+process and exposes every configured upstream MCP tool to that code. Only run
+configs and programs you trust.
 
 ## Why This Beats Raw MCP
 
