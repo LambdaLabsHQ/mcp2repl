@@ -1,12 +1,17 @@
 {
-  "name": "@lambda-labs/mcp2repl",
+  "name": "mcp2repl",
   "version": "0.0.1",
   "type": "module",
   "description": "Turn any stdio MCP server into a persistent JavaScript REPL with a single eval surface.",
   "bin": {
-    "mcp2repl": "./src/cli.js",
-    "mcp2repl-server": "./src/server.js"
+    "mcp2repl": "src/cli.js",
+    "mcp2repl-server": "src/server.js"
   },
+  "files": [
+    "src",
+    "examples",
+    "README.md"
+  ],
   "scripts": {
     "demo:chrome": "node ./src/cli.js --config ./examples/chrome-devtools.json --server chrome-devtools --file ./examples/chrome-demo.js",
     "experiment:chrome": "node ./examples/compare-chrome-experiment.mjs",

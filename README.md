@@ -35,7 +35,7 @@ return { title };
 ## Install / Run
 
 ```bash
-npx @lambda-labs/mcp2repl --config ./mcp.json
+npx mcp2repl --config ./mcp.json
 ```
 
 From a local checkout:
@@ -48,7 +48,7 @@ npm run smoke
 ## CLI eval
 
 ```bash
-npx @lambda-labs/mcp2repl --config ./examples/chrome-devtools.json --server chrome-devtools \
+npx mcp2repl --config ./examples/chrome-devtools.json --server chrome-devtools \
   --eval 'await mcp.call("new_page", { url: "https://example.com" }); await tools.evaluate_script({ function: "() => document.title" })'
 ```
 
@@ -172,7 +172,7 @@ that those calls are no longer separate agent turns.
 Expose any MCP server back to an agent framework as a single `eval` tool:
 
 ```bash
-npx -p @lambda-labs/mcp2repl mcp2repl-server --config ./examples/chrome-devtools.json --server chrome-devtools
+npx -p mcp2repl mcp2repl-server --config ./examples/chrome-devtools.json --server chrome-devtools
 ```
 
 The downstream agent sees one tool:
@@ -203,6 +203,20 @@ conditions, helper functions, retries, and batching in-process.
 MCP-2-REPL evaluates JavaScript with the permissions of the current Node.js
 process and exposes every configured upstream MCP tool to that code. Only run
 configs and programs you trust.
+
+## Publishing
+
+The package is published as `mcp2repl` on npm. GitHub Actions publishes
+automatically when a GitHub Release is published, and can also be triggered
+manually from the `Publish to npm` workflow.
+
+Repository setup required once:
+
+```text
+Settings -> Secrets and variables -> Actions -> New repository secret
+Name: NPM_TOKEN
+Value: npm automation token with publish access for mcp2repl
+```
 
 ## Why This Beats Raw MCP
 
