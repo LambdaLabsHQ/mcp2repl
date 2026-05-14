@@ -17,13 +17,14 @@ task correctness.
 
 Model: `gpt-5.5`
 
-This is the current token comparison. The Pure Chrome MCP and Prewritten REPL
-rows are from the recorded JSONL runs; the Interactive REPL row is the latest
-strict typed-facts rerun with the tightened external validator.
+This is the current token comparison. Every row uses the same measurement
+source: Codex JSONL usage events. The Interactive REPL row is the latest
+strict typed-facts JSONL run with the tightened external validator.
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| Data source | recorded JSONL | strict typed-facts rerun | recorded JSONL |
+| Token source | Codex JSONL transcript | Codex JSONL transcript | Codex JSONL transcript |
+| Run notes | recorded baseline | strict typed-facts | recorded prewritten |
 | Timestamp | `2026-05-14T11-05-39-671Z` | `2026-05-14T17-45-08-743Z` | `2026-05-14T11-12-32-851Z` |
 | External validation | pass | pass | pass |
 | Input tokens | 1,088,773 | 494,353 | 101,308 |

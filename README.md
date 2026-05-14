@@ -8,7 +8,8 @@ external validator.
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| Data source | recorded JSONL | strict typed-facts rerun | recorded JSONL |
+| Token source | Codex JSONL transcript | Codex JSONL transcript | Codex JSONL transcript |
+| Run notes | recorded baseline | strict typed-facts | recorded prewritten |
 | External validation | pass | pass | pass |
 | Total tokens | 1,094,568 | 504,349 | 105,970 |
 | Total tokens vs Pure Chrome MCP | 1.00x | 0.46x | 0.10x |
@@ -20,9 +21,10 @@ external validator.
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
-The recorded process video below uses the earlier interactive REPL run because
-it captures native Codex TUI and visible Chrome side by side. The token table
-above is the current result table.
+All token counts above are parsed from Codex JSONL usage events. The recorded
+process video below uses the earlier interactive REPL run because it captures
+native Codex TUI and visible Chrome side by side; use it for process and timing,
+not as the current token table.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
