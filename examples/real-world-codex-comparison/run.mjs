@@ -103,6 +103,9 @@ if (variants.some((variant) => variant.mode === "native")) {
 const summaries = [];
 for (const variant of variants) {
   console.error(`\n=== Running ${variant.name} ===`);
+  if (process.env.REAL_WORLD_CHROME_BROWSER_URL) {
+    await resetChromeForExperiment(process.env.REAL_WORLD_CHROME_BROWSER_URL);
+  }
   variant.codexHome = await prepareCodexHome(variant);
   const prompt = renderPrompt(variant.mode);
   await fs.writeFile(path.join(outDir, `${variant.name}.prompt.txt`), prompt);
@@ -133,30 +136,34 @@ function renderPrompt(mode) {
       "Use only the available Chrome/browser MCP automation tools.",
       "Do not use shell commands, filesystem commands, direct HTTP clients, or external scrapers.",
       "Drive the browser manually through top-level MCP tool calls.",
+      "Use the existing selected browser page and navigate it; do not create isolated contexts.",
       "Avoid take_snapshot on full Apple pages unless absolutely necessary.",
-      "Use evaluate_script to return compact structured fields instead of long page text."
+      "Use evaluate_script to return compact structured fields instead of long page text.",
+      "Use the public Apple US URLs from the task. For prices, extract full upfront standard-consumer US dollar amounts such as `$1,099`; ignore monthly installments such as `$91.58/mo` and education-savings ribbon prices."
     ].join(" "),
     repl: [
       "Use the installed mcp2repl skill to discover the local REPL workflow.",
       "Codex has no browser MCP tools in this run; use shell only to run the local mcp2repl CLI against Chrome MCP.",
-      "Do not run shell for environment discovery, placeholder file creation, source inspection, or artifact inspection. The only shell commands should read the skill quick start and invoke node ./src/cli.js evaluator expressions.",
-      "Root constraint: minimize top-level Codex turns. Browser loops, retries, extraction, validation, aggregation, and final projection belong inside the evaluator.",
-      "Isolation constraint: do not read, copy, grep, inspect, or derive from examples/real-world-codex-comparison/scripted-repl-task.js, native outputs, previous experiment artifacts, or any prewritten Apple task implementation. Build the task module from the task prompt, the skill quick start, and runtime tool discovery only.",
+      "Do not run shell for environment discovery, source inspection, previous artifact inspection, or broad file work. The only shell commands should read the skill staged REPL path and invoke node ./src/cli.js evaluator expressions.",
+      "REPL philosophy: control the size of each evaluator step. Do not write one all-in-one Apple task module or one probe() that visits every page. Use the SICP layering: MCP tools are primitive procedures, a few thin helpers are compound procedures, the persistent session is the environment, and artifacts are evaluator memory.",
+      "Isolation constraint: do not read, copy, grep, inspect, or derive from examples/real-world-codex-comparison/scripted-repl-task.js, native outputs, previous experiment artifacts, or any prewritten Apple task implementation. Build only the small interactive helpers and observations needed from the task prompt, the skill quick start, and runtime tool discovery.",
       "Use mcp2repl as an interactive evaluator: MCP tools are primitive procedures, task JavaScript defines compound procedures on globalThis, and the persistent session is the evaluator environment.",
       "The runner sets MCP2REPL_* defaults for config, server, session, JSON, timeout, max output, and artifact directory. Do not manually start a daemon; the first session client call auto-starts it.",
-      "Read at most the first 45 lines of the mcp2repl skill, then write one task module under `.tmp/real-world-codex-comparison/apple-task-module.js` directly.",
-      "The task module must expose globalThis.appleTask.probe() and globalThis.appleTask.final(). probe() must setup Chrome, observe all required Apple pages, compose typed facts, run one bounded evaluator-side fallback for missing typed specs, validate, save raw evidence as artifacts, and return api.print({ invariantPassed, missing, qualityFailures, options:[{ productName, price, chip, memory, storage, display, battery, ports, evidence }], sources }, { maxChars: 6000 }). final() must be a pure projection from the validated typed facts, run its own compact presentation-quality validation, and return api.print(compactFinal, { maxChars: 6000 }).",
-      "After writing the module, use only two normal evaluator expressions: load+probe, then final if probe passes and the compact typed facts visibly match the three product scenarios. Patch only for a syntax/runtime error, probe invariantPassed:false, non-empty qualityFailures, or visibly wrong product-scoped facts in probe. Once final() returns ok:true with invariantPassed:true, return it immediately; do not polish optional qualitative fields.",
-      "Do not use inline --eval browser programs after the task module is loaded. Do not return raw final objects, raw page text, full arrays, labels, controls, snippets, screenshots, or snapshots to Codex.",
+      "Read at most the first 65 lines of the mcp2repl skill, then proceed with 5-9 small evaluator expressions. For every multi-line expression, use stdin eval with a quoted heredoc: `node ./src/cli.js --session apple -e - <<'JS' ... JS`. Do not wrap multi-line JavaScript in shell single quotes because `$`, `!`, and regex text will be corrupted. Do not create a file unless a domain-neutral helper becomes too long for a single readable command.",
+      "Step shape: first discover only the needed primitive procedures with api.searchTools or api.guide, but immediately project inside the evaluator to { name, inputKeys, call } and print at maxChars 2000; never return raw discovery results. Next define globalThis.appleTask = { facts:{ optionsPreview:{} }, sources:[] } and only thin generic helpers such as selectVisiblePage(), go(url), evalPage(fn,args), observeText(matchers), remember(key,value), and checkpoint(). These helpers may abstract MCP calling and compact observation, but must not encode the whole Apple task as a hidden one-shot program.",
+      "Each evaluator expression after helper setup must have one purpose: Air overview facts, Air shop size/price controls, Pro overview facts, Pro shop size/price controls, compare-page typed facts, missing-field repair, or final projection. Do not loop through all required pages in the first probe. Do not define probe(), run(), final(), or a broad repair loop that visits every page before Codex has seen intermediate checkpoints. Patch only the smallest helper or one extraction expression after a concrete syntax/runtime error or a compact checkpoint showing missing or visibly wrong facts.",
+      "Every checkpoint must return api.print({ step, invariantSoFar, missing, optionsPreview, sources }, { maxChars: 4000 }) or a similarly compact structure. Raw page text, full arrays, labels, controls, snippets, screenshots, and snapshots must be saved as artifacts or kept in evaluator state, not returned to Codex.",
+      "Once checkpoints contain correct product-scoped facts for the three scenarios and final() or the final projection returns invariantPassed:true, return that compact JSON immediately; do not polish optional qualitative fields.",
       "Use the existing visible Chrome tab opened by the recorder. Do not call new_page or create additional browser pages/tabs. Navigate the current tab with navigate_page for every Apple URL so the observable Chrome window shows the work.",
-      "Do not call tools.navigate_page directly. In the task module, include a small generic procedure that first calls api.callTool('chrome-devtools','list_pages', {}), selects the visible Apple page with api.callTool('chrome-devtools','select_page', { pageIdx }), then calls api.callTool('chrome-devtools','navigate_page', { url }). This visible-page binding is required before every navigation.",
-      "Keep the task module concise. Use simple line-based extraction from visible page text and controls; do not build a broad scraper, configurator engine, click library, compare-table framework, or repair loop.",
-      "The task module must not assume a fixed Apple DOM. Wrap uncertain tool outputs with api.unwrap(...). For page JavaScript, use api.evalTool('evaluate_script', (args) => { ... }, args), not tools.evaluate_script with unsupported args.",
-      "Before visiting product pages, navigate the current tab to https://www.apple.com/ in the evaluator and set a US English Apple session cookie/localStorage. If any Apple URL lands on /choose-country-region/, the task module must recover by selecting United States or resetting the US session and renavigating; do not treat the country chooser as product evidence.",
-      "Apple extraction rules: preserve body.innerText newlines; for size-specific prices read the nearest From/Starting-at dollar after '13-inch', '15-inch', or '14-inch' on public buy pages; ignore education, trade-in, AppleCare, monthly installments, compare placeholders, and tiny app/service prices.",
+      "Do not call tools.navigate_page directly. In the generic helper layer, first call api.callTool('chrome-devtools','list_pages', {}), select the visible Apple page with api.callTool('chrome-devtools','select_page', { pageIdx }), then call api.callTool('chrome-devtools','navigate_page', { url }). This visible-page binding is required before every navigation.",
+      "Keep helpers concise. Use simple line-based extraction from visible page text and controls; do not build a broad scraper, configurator engine, click library, compare-table framework, or repair loop.",
+      "Do not assume a fixed Apple DOM. Wrap uncertain tool outputs with api.unwrap(...). For page JavaScript, use api.evalTool('evaluate_script', (args) => { ... }, args), not tools.evaluate_script with unsupported args.",
+      "Before visiting product pages, navigate the current tab to https://www.apple.com/ in the evaluator and set a US English Apple session cookie/localStorage. If any Apple URL lands on /choose-country-region/, the next small evaluator step must recover by selecting United States or resetting the US session and renavigating; do not treat the country chooser as product evidence.",
+      "Apple extraction rules: preserve body.innerText newlines; for size-specific prices read the nearest full upfront standard-consumer dollar price after '13-inch', '15-inch', or '14-inch' on public buy pages; ignore monthly installment amounts such as '$91.58/mo', education-savings ribbon prices, trade-in, AppleCare, delivery, checkout, compare placeholders, and tiny app/service prices. If one control label contains both an upfront price and a monthly price, extract the whole-dollar upfront price and ignore only the decimal '/mo' amount; do not discard the whole label.",
+      "Pricing validation rule: if a 13-inch Air price is below $1,000, a 15-inch Air price is below $1,200, or a 14-inch Pro price is below $1,600, treat it as an education/invalid price and repair extraction from the shop selector or configured buy URL.",
       "Entity-scoped extraction rule: keep separate typed fact buckets for 13-inch Air, 15-inch Air, 14-inch Pro, shared Air facts, and shared Pro facts. Never satisfy a final product field from a global first regex match or broad page blob. Pro final fields/evidence must not mention MacBook Air; Air final fields/evidence must not mention MacBook Pro.",
-      "Typed spec rules: memory fields must come from capacity facts matching GB unified memory; storage fields must come from capacity facts matching 512GB/1TB/2TB/4TB/8TB SSD or storage. A higher capacity satisfies the minimum. If exact configured memory/storage is split or hidden, present conservative minimum-satisfying facts such as '16GB+ unified memory visible' or '512GB+ SSD/storage visible' only when those capacities appear somewhere in the observed Apple text. Do not fill memory/storage/display/ports with broad marketing paragraphs. Do not use legacy/comparison labels such as Intel, M1, or M2 as the current chip for these M5 MacBook scenarios.",
-      "Final presentation rules: synthesize short factual fields from typed facts. Evidence is 2-4 short facts, not raw snippets. Optional fields such as portability, display, battery, and ports may use short conservative phrases or unknown/verify wording when exact evidence is not clean. Never copy Apple Card, Wallet, credit, checkout, bag, delivery, footer, legal, gallery, footnote, testing, preproduction, iMac, iPhone, iPad, Apple Watch, AirPods, or UI-control text into final product fields. Display should be a short display/screen fact or unknown; portability should be a short size/weight/travel fact or unknown. Battery claims must include a number plus hours or be unknown. Ports notes must mention a whole-word relevant port/display term or be unknown; 'Support' is not a port fact. final() must validate final-field quality and fail if chip/display/battery/ports/evidence fields are broad paragraphs over 140 chars, contain noise text, unrelated product names, or if ports is not unknown and lacks a whole-word match for Thunderbolt, USB-C, MagSafe, HDMI, SDXC, port, ports, or external display. If final quality validation fails, return invariantPassed:false with missing reasons so Codex can patch once.",
+      "Typed spec rules: memory fields must come from capacity facts matching GB unified memory; storage fields must come from capacity facts matching 512GB/1TB/2TB/4TB/8TB SSD or storage. A higher capacity satisfies the minimum. If exact configured memory/storage is split or hidden, present conservative minimum-satisfying facts such as '16GB+ unified memory visible' or '512GB+ SSD/storage visible' only when those capacities appear somewhere in the observed Apple text; if several valid capacities appear, prefer the lowest one that satisfies the stated 512GB floor. For Pro, concise configurator fieldsets/control labels such as '16GB' near 'unified memory' and '512GB' or '1TB' near 'storage' are valid; testing, preproduction, and battery-test footnotes are invalid capacity evidence. Do not fill memory/storage/display/ports with broad marketing paragraphs. Do not use legacy/comparison labels such as Intel, M1, or M2 as the current chip for these M5 MacBook scenarios.",
+      "Final presentation rules: synthesize short factual fields from typed facts. Evidence is 2-4 short facts, not raw snippets. Optional fields such as portability, display, battery, and ports may use short conservative phrases or unknown/verify wording when exact evidence is not clean. Never copy Apple Card, Wallet, credit, checkout, bag, delivery, footer, legal, gallery, footnote, testing, preproduction, education savings, iMac, iPhone, iPad, Apple Watch, AirPods, or UI-control text into final product fields. Display should be a short display/screen fact or unknown; portability should be a short size/weight/travel fact or unknown and must include at least one of: pounds, lbs, kg, thin, lightweight, portable, travel, 13-inch, 14-inch, or 15-inch. Do not use vague phrases such as 'Air portability' without a concrete size/weight/travel cue. Battery claims must include a number plus hours or be unknown. Ports notes must mention a whole-word relevant port/display term or be unknown; 'Support' is not a port fact. final() must validate final-field quality and fail if chip/display/portability/battery/ports/evidence fields are broad paragraphs over 140 chars, contain noise text, unrelated product names, education prices, or if ports is not unknown and lacks a whole-word match for Thunderbolt, USB-C, MagSafe, HDMI, SDXC, port, ports, or external display. If final quality validation fails, return invariantPassed:false with missing reasons so Codex can patch once.",
       "Do not hard-code prices, chip names, memory, storage, or evidence. Every non-unknown fact must come from a probe result returned by mcp2repl in this run.",
       "Do not use curl, wget, Python requests, browserless scraping, or direct network fetches outside Chrome MCP."
     ].join(" "),
@@ -571,7 +578,7 @@ function validateResult(parsed) {
       option.productName,
       option.scenario
     ].map((value) => String(value ?? "")).join(" ").toLowerCase(),
-    price: parseDollar(option.configuredOrRelevantPrice) ?? parseDollar(option.visibleStartingPrice)
+    price: parseLaptopPrice(option.configuredOrRelevantPrice) ?? parseLaptopPrice(option.visibleStartingPrice)
   }));
 
   const air13 = normalized.find(({ identityText }) => /13[^a-z0-9]*inch.*macbook air|macbook air.*13[^a-z0-9]*inch/.test(identityText));
@@ -583,7 +590,7 @@ function validateResult(parsed) {
 
   for (const { option, price } of normalized) {
     const evidence = Array.isArray(option.evidence) ? option.evidence : [];
-    if (!price || price < 900) failures.push(`${optionLabel(option)} has no laptop price above $900`);
+    if (!price || price < 900) failures.push(`${optionLabel(option)} has no laptop upfront price`);
     for (const key of ["productName", "officialUrl", "chip", "memory", "storage"]) {
       if (isUnknown(option[key])) failures.push(`${optionLabel(option)} has unknown ${key}`);
     }
@@ -605,6 +612,9 @@ function validateResult(parsed) {
   if (air13?.price && air15?.price && air13.price === air15.price) {
     failures.push("13-inch and 15-inch Air prices must differ");
   }
+  if (air13?.price && air13.price < 1000) failures.push("13-inch Air price looks like education/discount pricing, not standard consumer pricing");
+  if (air15?.price && air15.price < 1200) failures.push("15-inch Air price looks like education/discount pricing, not standard consumer pricing");
+  if (pro14?.price && pro14.price < 1600) failures.push("14-inch Pro price looks too low for the standard consumer Pro scenario");
   if (air13) failures.push(...productSeparationFailures(air13, "air", "13-inch MacBook Air"));
   if (air15) failures.push(...productSeparationFailures(air15, "air", "15-inch MacBook Air"));
   if (pro14) failures.push(...productSeparationFailures(pro14, "pro", "14-inch MacBook Pro"));
@@ -694,7 +704,7 @@ function presentationQualityFailures(option) {
 }
 
 function isNoiseText(value) {
-  return /(apple card|wallet|credit approval|cash back|monthly installment|financing|trade[- ]?in|add to bag|checkout|delivery|footer|copyright|gallery updated|choose your|learn more|shop mac|compare all|privacy policy|terms of use|testing conducted|preproduction|production [0-9]{2}-inch|light (?:was )?off)/i.test(String(value ?? ""));
+  return /(apple card|wallet|credit approval|cash back|monthly installment|financing|education savings|trade[- ]?in|add to bag|checkout|delivery|footer|copyright|gallery updated|choose your|learn more|shop mac|compare all|privacy policy|terms of use|testing conducted|preproduction|production [0-9]{2}-inch|light (?:was )?off)/i.test(String(value ?? ""));
 }
 
 function containsUnrelatedAppleProduct(value) {
@@ -713,10 +723,13 @@ function isUnknown(value) {
   return value == null || String(value).trim() === "" || /^unknown$/i.test(String(value).trim());
 }
 
-function parseDollar(value) {
-  const match = String(value ?? "").match(/\$([0-9][0-9,]*(?:\.\d{2})?)/);
-  if (!match) return null;
-  return Number(match[1].replace(/,/g, ""));
+function parseLaptopPrice(value) {
+  const text = String(value ?? "");
+  const prices = [];
+  for (const match of text.matchAll(/\$([0-9][0-9,]*(?:\.\d{2})?)/g)) {
+    prices.push(Number(match[1].replace(/,/g, "")));
+  }
+  return prices.length ? Math.max(...prices) : null;
 }
 
 function renderMarkdown(summaries) {
@@ -838,4 +851,25 @@ function withAttemptSuffix(filePath, attempt) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function resetChromeForExperiment(url) {
+  const targets = await fetchJson(`${url}/json`);
+  const pages = targets.filter((target) =>
+    target.type === "page" &&
+    !String(target.url ?? "").startsWith("devtools://")
+  );
+  await Promise.all(pages.map((target) =>
+    fetch(`${url}/json/close/${target.id}`).catch(() => {})
+  ));
+  await delay(800);
+  const created = await fetchJson(`${url}/json/new?${encodeURIComponent("https://www.apple.com/")}`, { method: "PUT" });
+  if (created?.id) await fetch(`${url}/json/activate/${created.id}`).catch(() => {});
+  await delay(1200);
+}
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+  return response.json();
 }

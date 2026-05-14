@@ -1,30 +1,35 @@
 # MCP-2-REPL
 
 MCP-2-REPL turns any stdio MCP server into a persistent JavaScript evaluator.
-On a real Apple shopping research task with visible Chrome, the same Codex
-prompt was run three ways. Pure Chrome MCP is the baseline; the latest
-interactive REPL result uses strict typed-fact checkpoints and the tightened
-external validator.
+The mental model is procedure abstraction: MCP tools become primitive
+procedures, agents define small compound procedures, and each REPL step
+evaluates one expression against a persistent environment.
+
+On a no-login Apple US/English shopping research task with visible Chrome, the
+same Codex task was run three ways. Pure Chrome MCP is the direct tool-call
+baseline.
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | Token source | Codex JSONL transcript | Codex JSONL transcript | Codex JSONL transcript |
-| Run notes | recorded baseline | strict typed-facts | recorded prewritten |
+| Process abstraction | direct tool calls | small evaluator steps | reusable compound procedure |
 | External validation | pass | pass | pass |
-| Total tokens | 1,094,568 | 504,349 | 105,970 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.46x | 0.10x |
-| Total token reduction vs Pure Chrome MCP | baseline | 53.9% less | 90.3% less |
-| Uncached input + output | 66,728 | 30,109 | 13,298 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.45x | 0.20x |
-| Uncached reduction vs Pure Chrome MCP | baseline | 54.9% less | 80.1% less |
-| Top-level operations | 23 MCP tool calls | 6 shell commands + 4 file edits | 1 shell command |
+| Total tokens | 2,534,979 | 637,871 | 99,561 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
+| Token advantage | baseline | 3.97x fewer | 25.46x fewer |
+| Total token reduction | baseline | 74.8% less | 96.1% less |
+| Uncached input + output | 165,827 | 52,399 | 6,377 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.32x | 0.04x |
+| Uncached reduction | baseline | 68.4% less | 96.2% less |
+| Top-level operations | 29 MCP tool calls | 17 evaluator commands | 1 evaluator command |
+| Recorded video time | 164.7s | 242.7s | 26.2s |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
-All token counts above are parsed from Codex JSONL usage events. The recorded
-process video below uses the earlier interactive REPL run because it captures
-native Codex TUI and visible Chrome side by side; use it for process and timing,
-not as the current token table.
+All token counts above are parsed from Codex JSONL usage events from the same
+strict run. The interactive recording is slower because it deliberately repairs
+typed facts step by step; its token cost is still 74.8% lower than direct Chrome
+MCP because raw browser observations stay inside the evaluator.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
@@ -32,16 +37,17 @@ Click the preview to open the recorded comparison video. It shows native Codex
 TUI output beside visible Chrome for Pure Chrome MCP, Interactive REPL, and
 Prewritten REPL, with elapsed time and token usage overlaid.
 
-| Recorded Video Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| Recorded video metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| Wall-clock video time | 273.1s | 214.2s | 113.7s |
-| Time vs Pure Chrome MCP | 1.00x | 0.78x | 0.42x |
-| Total tokens | 1,094,568 | 175,735 | 105,970 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.16x | 0.10x |
+| Wall-clock video time | 164.7s | 242.7s | 26.2s |
+| Time vs Pure Chrome MCP | 1.00x | 1.47x | 0.16x |
+| Total tokens | 2,534,979 | 637,871 | 99,561 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
 
-The current interactive REPL run uses 46.1% of the baseline total tokens while
-passing stricter validation. The prewritten REPL uses 9.7% of the baseline total
-tokens; that is the amortized path once exploration becomes reusable code.
+The interactive path uses 25.2% of the baseline total tokens while preserving
+the step-by-step exploration workflow. The prewritten path uses 3.9% of the
+baseline total tokens; that is the amortized path once exploration becomes
+reusable code.
 
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build
@@ -50,7 +56,7 @@ incrementally.
 
 ```js
 async function pageTitle(url) {
-  await tools.new_page({ url });
+  await mcp.call("navigate_page", { url });
   return await api.evalTool("evaluate_script", () => document.title);
 }
 
@@ -83,7 +89,7 @@ Run one JavaScript program against an MCP server:
 npx mcp2repl \
   --config ./examples/chrome-devtools.json \
   --server chrome-devtools \
-  --eval 'await tools.new_page({ url: "https://example.com" }); return await api.evalTool("evaluate_script", () => document.title)'
+  --eval 'await mcp.call("navigate_page", { url: "https://example.com" }); return await api.evalTool("evaluate_script", () => document.title)'
 ```
 
 Run a file:
@@ -96,8 +102,7 @@ npx mcp2repl \
 ```
 
 For agent sessions, put stable options in environment variables so individual
-calls stay short. Then load a task module that defines compound procedures and
-evaluate medium-sized steps:
+calls stay short. Then evaluate small, typed steps against the same session:
 
 ```bash
 export MCP2REPL_CONFIG=./examples/chrome-devtools-visible.json
@@ -108,10 +113,25 @@ export MCP2REPL_QUIET=1
 export MCP2REPL_TIMEOUT=240
 export MCP2REPL_MAX_OUTPUT_CHARS=6000
 
-node ./src/cli.js -e 'await api.load(".tmp/apple-task-module.js"); return await apple.setup();'
-node ./src/cli.js -e 'return await apple.observeProducts(["air", "pro"]);'
-node ./src/cli.js -e 'return await apple.observeBuyingOptions(["air", "pro"]);'
-node ./src/cli.js -e 'const draft = await apple.composeRecommendation(); return await api.print(await apple.validate(draft), { maxChars: 6000 });'
+node ./src/cli.js -e - <<'JS'
+globalThis.task = { facts: {}, sources: [] };
+return task;
+JS
+
+node ./src/cli.js -e - <<'JS'
+const docs = await api.library("navigate page evaluate wait", { limit: 4 });
+return docs.map((doc) => ({ name: doc.name, call: doc.example }));
+JS
+
+node ./src/cli.js -e - <<'JS'
+await mcp.call("navigate_page", { url: "https://www.apple.com/macbook-air/" });
+task.sources.push("https://www.apple.com/macbook-air/");
+task.facts.air = await api.evalTool("evaluate_script", () => ({
+  title: document.title,
+  prices: [...document.body.innerText.matchAll(/\$[\d,]+/g)].slice(0, 8).map((m) => m[0])
+}));
+return await api.print({ step: "air-overview", facts: task.facts.air }, { maxChars: 2000 });
+JS
 ```
 
 The first session client call auto-starts a daemon when `--config` or
@@ -122,17 +142,17 @@ socket by default.
 and `-e -` reads the program from stdin:
 
 ```bash
-printf '%s\n' \
-  'await api.load(".tmp/apple-task-module.js");' \
-  'await apple.setup();' \
-  'return await apple.observeProducts(["air", "pro"]);' \
-  | node ./src/cli.js -e -
+node ./src/cli.js -e - <<'JS'
+task.facts.count = Object.keys(task.facts).length;
+return task.facts;
+JS
 ```
 
 This keeps the interface as evaluator expressions over a persistent
-environment. Use `--load` to install a task module, then call named procedures
-with `-e` or `--call`. Prefer medium-sized, inspectable steps over a monolithic
-procedure that tries to finish the whole task in one evaluation.
+environment. If a neutral helper becomes too long for a readable expression,
+use `--load` to install the helper once, then keep the actual work as
+medium-sized, inspectable `-e` or `--call` steps. Avoid a monolithic procedure
+that tries to finish the whole task in one evaluation.
 
 Print generated function docs for matching tools without starting an
 interactive session:
@@ -157,6 +177,7 @@ Scripts are evaluated inside an async function. Use `return` for the final
 value. Main globals:
 
 - `tools.safeName(args)` calls upstream tools through identifier-safe aliases.
+- `api.callTool(server, name, args)` calls a tool on a named upstream server.
 - `mcp.call(name, args)` calls an upstream MCP tool by exact name.
 - `mcp.tools[name](args)` calls an upstream MCP tool by exact name.
 - `mcp.<server>.<tool>(args)` calls namespaced tools when a multi-server config
@@ -241,14 +262,13 @@ chip, memory, storage, evidence, and different 13-inch/15-inch Air prices.
 Reproduce:
 
 ```bash
-CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
-  CODEX_VARIANTS=pure-mcp npm run experiment:real-world
-
-CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
-  CODEX_VARIANTS=interactive-repl npm run experiment:real-world
-
-CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
-  CODEX_VARIANTS=scripted-repl npm run experiment:real-world
+CODEX_MODEL=gpt-5.5 \
+CODEX_ATTEMPTS=2 \
+CODEX_RETRY_DELAY_MS=30000 \
+CODEX_VARIANTS=pure-mcp,interactive-repl,scripted-repl \
+REAL_WORLD_CHROME_BROWSER_URL=http://127.0.0.1:9223 \
+REAL_WORLD_CHROME_CONFIG=.tmp/recordings/chrome-devtools-browserurl.json \
+npm run experiment:real-world
 ```
 
 Artifacts are written under `.tmp/real-world-codex-comparison/<timestamp>/`.

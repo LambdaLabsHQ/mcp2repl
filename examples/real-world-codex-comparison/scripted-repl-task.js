@@ -53,6 +53,19 @@ function priceNear(text, patterns) {
   return null;
 }
 
+function normalizePrice(price) {
+  const match = String(price ?? "").match(/\$([0-9][0-9,]*(?:\.\d{2})?)/);
+  return match ? `$${match[1].replace(/,/g, "")}` : "unknown";
+}
+
+function proved(text, pattern, value) {
+  return pattern.test(text) ? value : "unknown";
+}
+
+function firstKnown(...values) {
+  return values.find((value) => value && value !== "unknown") || "unknown";
+}
+
 async function setAppleUsEnglishSession() {
   await tools.new_page({ url: "https://www.apple.com/", timeout: 25000 });
   await tools.evaluate_script({
@@ -161,73 +174,115 @@ const explicitPrices = {
   ])
 };
 
-function option({
-  scenario,
-  productName,
-  sourceText,
-  officialUrl,
-  priceFallback,
-  explicitPrice,
-  display,
-  portability,
-  pro = false
-}) {
-  const prices = findPrices(sourceText);
-  const startingPrice = explicitPrice || priceFallback || prices[0] || "unknown";
+function option(config) {
+  const startingPrice = normalizePrice(config.explicitPrice || config.priceFallback);
+  const evidence = unique(config.evidence.filter((item) => item && item !== "unknown")).slice(0, 4);
   return {
-    scenario,
-    productName,
-    officialUrl,
+    scenario: config.scenario,
+    productName: config.productName,
+    officialUrl: config.officialUrl,
     visibleStartingPrice: startingPrice,
     configuredOrRelevantPrice: startingPrice,
-    chip: findFirst(sourceText, [/M\d/i, /Apple silicon/i, /chip/i]),
-    memory: findFirst(sourceText, [/16GB/i, /unified memory/i, /memory/i]),
-    storage: findFirst(sourceText, [/512GB/i, /SSD/i, /storage/i]),
-    display: display || findFirst(sourceText, [/13-inch/i, /14-inch/i, /15-inch/i, /Liquid Retina/i, /display/i]),
-    weightOrPortability: portability || findFirst(sourceText, [/pounds/i, /thin/i, /light/i, /portable/i]),
-    batteryOrPowerClaim: findFirst(sourceText, [/battery/i, /hours/i, /power/i]),
-    portsOrExternalDisplayNotes: findFirst(sourceText, [/Thunderbolt/i, /ports/i, /external display/i, /HDMI/i, /SDXC/i]),
-    upgradeTradeoffs: findFirst(sourceText, [/configure/i, /upgrade/i, /memory/i, /storage/i, /price/i]),
-    whyGoodForUser: pro
+    chip: config.chip,
+    memory: config.memory,
+    storage: config.storage,
+    display: config.display,
+    weightOrPortability: config.portability,
+    batteryOrPowerClaim: config.battery,
+    portsOrExternalDisplayNotes: config.ports,
+    upgradeTradeoffs: config.upgradeTradeoffs,
+    whyGoodForUser: config.pro
       ? "Best fit when sustained performance, ports, display quality, and longer useful life matter more than minimum cost."
       : "Best fit when portability, battery life, quiet everyday work, and cost control matter most.",
-    whyRiskyOrOverkill: pro
+    whyRiskyOrOverkill: config.pro
       ? "Likely overkill if the user mainly does browser work, video calls, documents, and light photo edits."
       : "May be limiting for heavier creative work, sustained external-display use, or workflows needing more ports.",
-    evidence: findEvidence(sourceText, [/M\d/i, /16GB/i, /512GB/i, /battery/i, /display/i, /Thunderbolt/i, /\$\d/], 4)
+    evidence
   };
 }
+
+const airFactsText = `${airText}\n${airShopText}\n${compareText}`;
+const proFactsText = `${proText}\n${proShopText}\n${compareText}`;
+const airChip = proved(airFactsText, /\bM5\b/i, "M5 chip");
+const proChip = proved(proFactsText, /\bM5\b/i, "M5 chip");
+const airMemory = proved(airFactsText, /16GB[^.]{0,80}(unified )?memory|(unified )?memory[^.]{0,80}16GB/i, "16GB unified memory");
+const proMemory = proved(proFactsText, /16GB[^.]{0,80}(unified )?memory|(unified )?memory[^.]{0,80}16GB/i, "16GB unified memory");
+const airStorage = proved(airFactsText, /512GB[^.]{0,80}(SSD|storage)|(SSD|storage)[^.]{0,80}512GB/i, "512GB storage option visible");
+const proStorage = proved(proFactsText, /512GB[^.]{0,80}(SSD|storage)|(SSD|storage)[^.]{0,80}512GB/i, "512GB SSD storage");
+const airPorts = firstKnown(
+  proved(airFactsText, /MagSafe/i, "MagSafe and Thunderbolt ports"),
+  proved(airFactsText, /Thunderbolt/i, "Thunderbolt ports")
+);
+const proPorts = firstKnown(
+  proved(proFactsText, /HDMI/i, "Thunderbolt, HDMI, and SDXC card slot"),
+  proved(proFactsText, /Thunderbolt/i, "Thunderbolt ports")
+);
 
 const options = [
   option({
     scenario: "Portable value option",
     productName: "13-inch MacBook Air",
     officialUrl: pages.find((page) => /buy-mac\/macbook-air/i.test(page.url))?.url || "https://www.apple.com/us/shop/buy-mac/macbook-air",
-    sourceText: `${airText}\n${compareText}`,
     priceFallback: airPrices[0] || allPrices[0],
     explicitPrice: explicitPrices.air13,
-    display: "13-inch MacBook Air; Apple public page also states 13.6 inches measured as a standard rectangle",
-    portability: findFirst(compareText, [/Weight 2\.7 pounds/i, /2\.7 pounds/i]) || "2.7 pounds"
+    chip: airChip,
+    memory: airMemory,
+    storage: airStorage,
+    display: proved(airFactsText, /13\.6|Liquid Retina/i, "13.6-inch Liquid Retina display"),
+    portability: proved(compareText, /2\.7 pounds/i, "2.7 pounds"),
+    battery: proved(airFactsText, /up to 18 hours|18 hours/i, "Up to 18 hours battery life"),
+    ports: airPorts,
+    upgradeTradeoffs: "512GB storage raises price versus base storage.",
+    evidence: [
+      normalizePrice(explicitPrices.air13) !== "unknown" ? `13-inch MacBook Air from ${normalizePrice(explicitPrices.air13)}` : "unknown",
+      airChip !== "unknown" ? "MacBook Air page shows M5" : "unknown",
+      airMemory,
+      airStorage,
+      airPorts
+    ]
   }),
   option({
     scenario: "Larger-screen Air option",
     productName: "15-inch MacBook Air",
     officialUrl: pages.find((page) => /buy-mac\/macbook-air/i.test(page.url))?.url || "https://www.apple.com/us/shop/buy-mac/macbook-air",
-    sourceText: `${airText}\n${compareText}`,
     priceFallback: airPrices[1] || airPrices[0] || allPrices[0],
     explicitPrice: explicitPrices.air15,
-    display: "15-inch MacBook Air; Apple public page also states 15.3 inches measured as a standard rectangle",
-    portability: findFirst(compareText, [/Weight 3\.3 pounds/i, /3\.3 pounds/i]) || "larger than 13-inch Air, still in the Air line"
+    chip: airChip,
+    memory: airMemory,
+    storage: airStorage,
+    display: proved(airFactsText, /15\.3|Liquid Retina/i, "15.3-inch Liquid Retina display"),
+    portability: proved(compareText, /3\.3 pounds/i, "3.3 pounds"),
+    battery: proved(airFactsText, /up to 18 hours|18 hours/i, "Up to 18 hours battery life"),
+    ports: airPorts,
+    upgradeTradeoffs: "Larger screen costs more than 13-inch Air at the same memory/storage floor.",
+    evidence: [
+      normalizePrice(explicitPrices.air15) !== "unknown" ? `15-inch MacBook Air from ${normalizePrice(explicitPrices.air15)}` : "unknown",
+      airChip !== "unknown" ? "MacBook Air page shows M5" : "unknown",
+      airMemory,
+      airStorage,
+      proved(compareText, /3\.3 pounds/i, "15-inch Air listed at 3.3 pounds")
+    ]
   }),
   option({
     scenario: "Higher-headroom option",
     productName: "14-inch MacBook Pro",
     officialUrl: pages.find((page) => /buy-mac\/macbook-pro/i.test(page.url))?.url || "https://www.apple.com/us/shop/buy-mac/macbook-pro",
-    sourceText: `${proText}\n${compareText}`,
     priceFallback: proPrices[0] || allPrices[0],
     explicitPrice: explicitPrices.pro14,
-    display: "14.2-inch Liquid Retina XDR display",
-    portability: findFirst(compareText, [/Weight 3\.4 pounds/i, /3\.4 pounds/i]) || "3.4 pounds",
+    chip: proChip,
+    memory: proMemory,
+    storage: proStorage,
+    display: proved(proFactsText, /Liquid Retina XDR|14\.2/i, "14.2-inch Liquid Retina XDR display"),
+    portability: proved(compareText, /3\.4 pounds/i, "3.4 pounds"),
+    battery: proved(proFactsText, /up to 24 hours|24 hours/i, "Up to 24 hours battery life"),
+    ports: proPorts,
+    upgradeTradeoffs: "Higher starting price buys Pro display, ports, and more performance headroom.",
+    evidence: [
+      normalizePrice(explicitPrices.pro14) !== "unknown" ? `14-inch MacBook Pro from ${normalizePrice(explicitPrices.pro14)}` : "unknown",
+      proChip !== "unknown" ? "MacBook Pro page shows M5" : "unknown",
+      proStorage,
+      proPorts
+    ],
     pro: true
   })
 ];
@@ -251,6 +306,8 @@ return JSON.stringify({
   sources: pages.map((page) => page.url),
   invariantPassed: options.length === 3 &&
     options.every((entry) => entry.productName && entry.officialUrl) &&
+    options.every((entry) => entry.evidence.length >= 2) &&
+    options.every((entry) => !["chip", "memory", "storage"].some((key) => entry[key] === "unknown")) &&
     options[0].visibleStartingPrice === "$1099" &&
     options[1].visibleStartingPrice === "$1299" &&
     options[2].visibleStartingPrice === "$1699"

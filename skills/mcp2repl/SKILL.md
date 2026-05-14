@@ -8,25 +8,63 @@ metadata:
 # MCP-2-REPL
 
 Use `mcp2repl` when raw MCP calls would create a long transcript. In SICP
-terms, MCP tools are primitive procedures, your task module defines compound
-procedures, a session is the evaluator environment, and artifacts are evaluator
-memory.
+terms, MCP tools are primitive procedures, your small helper functions define
+compound procedures, a session is the evaluator environment, and artifacts are
+evaluator memory.
 
-## Fast Path
+## Staged REPL Path
 
 Do not inspect `src/` for API details. If `MCP2REPL_*` defaults are set, keep
-commands short. Write one task module, then run only decision-boundary
-expressions:
+commands short and use the persistent session as the evaluator environment.
+Prefer 4-8 small evaluator steps over one large program. For any multi-line
+expression, shell-sensitive text (`$`, `!`, backticks), or regex-heavy code,
+read the expression from stdin with a quoted heredoc:
+
+1. Discover only the few primitive procedures needed for this task, and project
+   discovery results to names, input keys, and call examples before printing.
+2. Install thin, domain-neutral helpers on `globalThis` when repeated calls
+   appear, such as `go`, `evalPage`, `observe`, and `save`.
+3. Initialize checkpoint/preview containers before the first observation.
+4. Explore one page, entity, or missing fact per evaluator expression.
+5. Return compact checkpoints with `api.print`; save raw observations as
+   artifacts so the model does not carry page text.
+6. Patch or extend only the smallest helper that failed. Once typed facts pass
+   validation, project the final answer.
 
 ```bash
-node ./src/cli.js -e 'await api.load(".tmp/task-module.js"); return await task.probe();'
-node ./src/cli.js -e 'return await task.final();'
+node ./src/cli.js --session work -e - <<'JS'
+const tools = (await api.searchTools("navigate evaluate"))
+  .map((tool) => ({ name: tool.name, inputKeys: tool.inputKeys, call: tool.call }))
+  .slice(0, 6);
+return api.print({ step: "discover", tools }, { maxChars: 2000 });
+JS
+
+node ./src/cli.js --session work -e - <<'JS'
+globalThis.task = { facts: {}, preview: {}, sources: [] };
+return { step: "state", ready: true };
+JS
+
+node ./src/cli.js --session work -e - <<'JS'
+// Define or patch one small generic helper.
+return { step: "helpers", helpers: Object.keys(task) };
+JS
+
+node ./src/cli.js --session work -e - <<'JS'
+// Observe one page, entity, or missing fact and save raw evidence.
+return api.print(checkpoint, { maxChars: 4000 });
+JS
+
+node ./src/cli.js --session work -e - <<'JS'
+// Project final JSON only after typed facts pass validation.
+return api.print(finalJson, { maxChars: 6000 });
+JS
 ```
 
-Task-module rules:
+Evaluator rules:
 
-- Keep browser loops, retries, extraction, validation, and aggregation inside
-  JavaScript.
+- Keep browser loops, retries, extraction, validation, and aggregation inside the
+  evaluator, but keep each visible step small enough that its result can guide
+  the next step.
 - Return model-facing values with `api.print(value, { projection, maxChars })`.
 - Save raw page text/snapshots with `api.saveArtifact()`; synthesize final
   fields from typed facts, not raw snippets.
@@ -35,7 +73,7 @@ Task-module rules:
 - Final fields should be short typed facts. If extraction finds legal, footer,
   payment, navigation, footnote, testing, or control text, return `unknown`
   instead of copying it.
-- Validate final-field noise and length inside the task module before returning.
+- Validate final-field noise and length inside the evaluator before returning.
 - Checkpoints should expose compact typed facts and validation failures, not only
   pass/fail, so the next evaluator expression is a real decision.
 - Artifacts are evaluator memory. Read them inside task procedures with
@@ -111,11 +149,15 @@ For multi-step work, keep one MCP connection alive with a session:
 
 ```bash
 node ./src/cli.js --quiet --timeout 180 --config ./mcp.json --server chrome-devtools --session work --json --max-output-chars 6000 --eval 'return api.searchTools("navigate evaluate", { limit: 3 })'
-node ./src/cli.js --session work --json --max-output-chars 6000 --timeout 180 -e '
-await api.load("./task-module.js");
-await browserTask.setup();
-return await browserTask.observe({ page: "home" });
-'
+node ./src/cli.js --session work --json --max-output-chars 6000 --timeout 180 -e - <<'JS'
+globalThis.task = { facts: {}, sources: [] };
+return { ready: true };
+JS
+node ./src/cli.js --session work --json --max-output-chars 6000 --timeout 180 -e - <<'JS'
+await api.callTool("chrome-devtools", "navigate_page", { url: "https://example.com" });
+task.facts.title = await api.evalTool("evaluate_script", () => document.title);
+return await api.print({ step: "home", title: task.facts.title }, { maxChars: 1000 });
+JS
 node ./src/cli.js --session work --stop
 ```
 
@@ -142,6 +184,7 @@ await api.readArtifact("snapshot.json");
 Core globals:
 
 - `tools.safeName(args)` calls identifier-safe MCP tool aliases.
+- `api.callTool(server, name, args)` calls a tool on a named upstream server.
 - `mcp.call(name, args)` calls an exact upstream MCP tool name.
 - `api.searchTools(query, { limit })` returns short ranked tool summaries.
 - `api.describeTool(name)` returns one full tool schema plus call hints on demand.
@@ -168,13 +211,14 @@ script. Start with one page or one UI state, inspect the compact value, then
 choose the next evaluator expression from that observation.
 For multi-step browser research, prefer `--session` so the selected page, open
 tabs, variables, and MCP server stay alive across evals.
-Do not put long tool-use JavaScript in shell `--eval` strings. Write compound
-procedures to a temporary `.js` task module, then use short evaluator
-expressions such as `await api.load(path)`, `await task.observe(slice)`,
+Do not put long tool-use JavaScript in shell `--eval` strings. Define thin
+helpers directly in the session when they fit a readable heredoc. If a
+domain-neutral helper becomes too long, put only that helper layer in a
+temporary `.js` module, load it once, then keep the actual work as short
+evaluator expressions such as `await task.observe(slice)`,
 `await task.compose()`, and `await task.validate(value)`.
-Do not spend extra turns inspecting or polishing the task module itself. Write
-it once, then run evaluator expressions; patch only for a concrete syntax,
-runtime, or validation failure.
+Do not hide the whole task in the module. Patch only for a concrete syntax,
+runtime, or validation failure surfaced by a compact evaluator checkpoint.
 For token-sensitive work, the agent should see compact observations,
 validation results, or the final value, not every intermediate browser action.
 Avoid monolithic procedures that try to complete a whole ambiguous task in one
@@ -244,10 +288,11 @@ file. Dynamic MCP context belongs in the REPL via `api.searchTools()` and
 
 ## Recommended Pattern
 
-1. Write a small task module under `.tmp/` that exports compound procedures on `globalThis`.
+1. Initialize small session state on `globalThis`, such as `{ facts, preview, sources }`.
 2. Start with one small discovery call such as `api.library("navigate evaluate", { limit: 3 })`.
 3. Use `api.describeTool()` only for the specific primitive procedures you need.
-4. Put tight loops, waits, retries, extraction, and ranking inside JavaScript procedures.
-5. Evaluate medium-sized steps: setup, observe one slice, compose, validate, repair only missing fields.
-6. Save large intermediate state with `api.saveArtifact()`.
-7. Return compact JSON or a concise final answer.
+4. Define thin helper procedures only when repeated calls appear; load a temporary helper module only if heredoc expressions become unreadable.
+5. Evaluate one page, entity, UI state, or missing fact per step.
+6. Save large intermediate state with `api.saveArtifact()` and return compact checkpoints with `api.print()`.
+7. Repair only the smallest failed helper or extraction step.
+8. Return compact JSON or a concise final answer once validation passes.

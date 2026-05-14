@@ -12,7 +12,7 @@ Hard constraints:
 - Do not enter personal information.
 - Use public Apple web pages only.
 
-Research the US English public Apple pages and interact with configurator / compare controls when useful. Keep the browser on `www.apple.com`, set or preserve US English locale when a prompt appears, and do not use non-US localized Apple pages.
+Research the US English public Apple pages and interact with configurator / compare controls when useful. Keep the browser on `www.apple.com`, set or preserve US English locale when a prompt appears, and do not use non-US localized Apple pages. Use visible standard-consumer US upfront prices such as `$1,099`; ignore monthly installment prices such as `$91.58/mo` and education-savings ribbon prices.
 
 1. https://www.apple.com/macbook-air/
 2. https://www.apple.com/macbook-pro/
@@ -71,4 +71,6 @@ Rules:
 - Do not use web search unless an Apple page fails to load or clearly redirects to a new official Apple location.
 - Do not use curl, wget, Python requests, direct HTTP clients, or filesystem scraping.
 - Do not invent current prices or specs. Use "unknown" when the page does not expose a fact.
+- For price fields, use the full upfront standard-consumer US dollar price from the shop size selector or configured buy URL, not the monthly installment amount and not an education-savings ribbon amount.
+- For Pro memory/storage, use short capacity controls or specs such as `16GB` unified memory and `512GB` or `1TB` storage; never use testing, preproduction, battery-test, legal, or footnote lines as capacity evidence.
 - Return only compact JSON.
