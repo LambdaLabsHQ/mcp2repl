@@ -11,23 +11,22 @@ Use `mcp2repl` when raw MCP tool calls would create a long transcript: repeated
 browser actions, polling, retries, multi-page extraction, batching, or local data
 processing.
 
-The CLI starts the runtime. The important interface is the REPL: async
-JavaScript with persistent helpers, local variables, runtime tool discovery, and
-artifact files.
+The CLI starts the runtime. Think in SICP terms: MCP tools become primitive
+procedures; task-specific JavaScript defines compound procedures; a session is a
+persistent evaluator environment; artifacts are named observations kept out of
+the model transcript.
 
 ## Fast Path
 
 For token-sensitive browser work in this repository, use this shape and do not
 inspect `src/` for API details. If `MCP2REPL_*` environment defaults are set,
-commands stay short. Prefer one multi-line evaluator call when the steps are
-known up front:
+commands stay short. Load a task module once, then evaluate medium-sized
+compound procedures:
 
 ```bash
-node ./src/cli.js -e '
-await api.load(".tmp/task-harness.js");
-const probe = await task.probe({});
-return await task.final({ probe });
-'
+node ./src/cli.js -e 'await api.load(".tmp/task-module.js"); return await task.setup();'
+node ./src/cli.js -e 'return await task.observe({ page: "home" });'
+node ./src/cli.js -e 'return await task.composeAndValidate();'
 ```
 
 `-e` accepts normal multi-line shell strings, can be repeated to append lines,
@@ -35,20 +34,20 @@ and `-e -` reads the program from stdin.
 
 ```bash
 printf '%s\n' \
-  'await api.load(".tmp/task-harness.js");' \
-  'const probe = await task.probe({});' \
-  'return await task.final({ probe });' \
+  'await api.load(".tmp/task-module.js");' \
+  'await task.setup();' \
+  'return await task.observe({ page: "home" });' \
   | node ./src/cli.js -e -
 ```
 
-Inside the loaded harness:
+Inside the loaded task module:
 
 ```js
 await tools.navigate_page({ url: "https://example.com" });
 await mcp.chrome_devtools.navigate_page({ url: "https://example.com" });
 await api.callTool("chrome-devtools", "navigate_page", { url: "https://example.com" });
 await api.evalTool("evaluate_script", (args) => ({ title: document.title, args }), { ok: true });
-await api.load(".tmp/task-harness.js");
+await api.load(".tmp/task-module.js");
 await api.saveArtifact("evidence.json", compactValue);
 ```
 
@@ -80,15 +79,15 @@ Run a script file:
 mcp2repl --quiet --json --max-output-chars 6000 --timeout 180 --config ./mcp.json --server chrome-devtools --file ./task.js
 ```
 
-Load a reusable session harness safely:
+Load a reusable task module safely:
 
 ```bash
-mcp2repl --quiet --json --max-output-chars 6000 --timeout 180 --config ./mcp.json --server chrome-devtools --session work --load ./task-harness.js
-mcp2repl --session work --json --max-output-chars 6000 --timeout 180 --call browserTask.probe --call-args '{"page":"home"}'
+mcp2repl --quiet --json --max-output-chars 6000 --timeout 180 --config ./mcp.json --server chrome-devtools --session work --load ./task-module.js
+mcp2repl --session work --json --max-output-chars 6000 --timeout 180 --call browserTask.observe --call-args '{"page":"home"}'
 ```
 
 `--load` wraps the file in an async function before evaluating it. Use it for
-session harnesses that define `globalThis.someTask = { ... }`; it can be rerun
+task modules that define `globalThis.someTask = { ... }`; it can be rerun
 after a patch without top-level `const`/`let` redeclaration conflicts.
 
 Use `node ./src/cli.js` instead of `mcp2repl` inside a local checkout:
@@ -112,9 +111,9 @@ For multi-step work, keep one MCP connection alive with a session:
 ```bash
 node ./src/cli.js --quiet --timeout 180 --config ./mcp.json --server chrome-devtools --session work --json --max-output-chars 6000 --eval 'return api.searchTools("navigate evaluate", { limit: 3 })'
 node ./src/cli.js --session work --json --max-output-chars 6000 --timeout 180 -e '
-await api.load("./task-harness.js");
-const probe = await browserTask.probe({ page: "home" });
-return await browserTask.final({ probe });
+await api.load("./task-module.js");
+await browserTask.setup();
+return await browserTask.observe({ page: "home" });
 '
 node ./src/cli.js --session work --stop
 ```
@@ -157,24 +156,23 @@ Core globals:
 - `sleep(ms)` is available for local waits.
 
 Keep the model-facing output compact. Filter large browser snapshots or API
-responses inside JavaScript, then return only the final answer or save artifacts.
-For exploratory probes, return only a small summary. Do not print full page text,
-full snapshots, or large arrays of labels/snippets into the model transcript.
-For browser research, use REPL-shaped steps rather than one large guessed
-script. Start with one page or one UI state, inspect the compact result, then
-choose the next eval from that observation.
+responses inside JavaScript, then return only compact values or save artifacts.
+For exploratory observations, return only a small summary. Do not print full
+page text, full snapshots, or large arrays of labels/snippets into the model
+transcript.
+For browser research, use procedural abstraction rather than one large guessed
+script. Start with one page or one UI state, inspect the compact value, then
+choose the next evaluator expression from that observation.
 For multi-step browser research, prefer `--session` so the selected page, open
 tabs, variables, and MCP server stay alive across evals.
-Do not put long tool-use JavaScript in shell `--eval` strings. Write probe or
-extraction code to a temporary `.js` file, then use a short multi-line `-e`
-orchestration program with `await api.load(path)` when you need to load the file
-and call a few exposed functions in one evaluator turn.
-For token-sensitive work, prefer one self-contained task file that performs its
-own probes, retries, extraction, and final aggregation inside JavaScript. In a
-session, load that file with `api.load(path)` from a short multi-line `-e`, then
-call the exposed `globalThis` functions inside the same eval. The agent should
-see compact checkpoints or the final result, not every intermediate browser
-action.
+Do not put long tool-use JavaScript in shell `--eval` strings. Write compound
+procedures to a temporary `.js` task module, then use short evaluator
+expressions such as `await api.load(path)`, `await task.observe(slice)`,
+`await task.compose()`, and `await task.validate(value)`.
+For token-sensitive work, the agent should see compact observations,
+validation results, or the final value, not every intermediate browser action.
+Avoid monolithic procedures that try to complete a whole ambiguous task in one
+eval; they are harder to inspect and expensive to repair.
 For browser page evaluation or any eval-like MCP tool, prefer `api.evalTool()`
 over hand-written transport wrappers. Do not add unsupported `args` keys to MCP
 tool calls; `api.evalTool()` embeds arguments according to the tool schema.
@@ -220,9 +218,10 @@ file. Dynamic MCP context belongs in the REPL via `api.searchTools()` and
 
 ## Recommended Pattern
 
-1. Write a small script file under `.tmp/` for the task.
+1. Write a small task module under `.tmp/` that exports compound procedures on `globalThis`.
 2. Start with one small discovery call such as `api.library("navigate evaluate", { limit: 3 })`.
-3. Use `api.describeTool()` only for the specific tools you need; read its call hints before writing arguments.
-4. Put loops, waits, retries, extraction, and ranking in JavaScript.
-5. Save large intermediate state with `api.saveArtifact()`.
-6. Return compact JSON or a concise final answer.
+3. Use `api.describeTool()` only for the specific primitive procedures you need.
+4. Put tight loops, waits, retries, extraction, and ranking inside JavaScript procedures.
+5. Evaluate medium-sized steps: setup, observe one slice, compose, validate, repair only missing fields.
+6. Save large intermediate state with `api.saveArtifact()`.
+7. Return compact JSON or a concise final answer.

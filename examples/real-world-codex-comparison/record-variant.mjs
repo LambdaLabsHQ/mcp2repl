@@ -23,7 +23,7 @@ const logPath = path.join(outDir, "experiment.log");
 await ensureChrome(chromeUrl);
 await fsp.mkdir(outDir, { recursive: true });
 await fsp.writeFile(logPath, "");
-await fsp.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-harness.js"), { force: true });
+await fsp.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-module.js"), { force: true });
 
 const recorder = spawn(process.execPath, [
   path.join(rootDir, "examples", "real-world-codex-comparison", "record-dashboard.mjs"),

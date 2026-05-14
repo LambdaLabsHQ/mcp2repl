@@ -31,22 +31,24 @@ external validator. The prewritten REPL used 9.7% of the baseline total tokens
 and finished 58.4% faster; that is the amortized path once exploration becomes
 reusable code.
 
-MCP gives an agent remote-control tools. MCP-2-REPL gives the agent a language
-surface over those tools: async JavaScript, persistent globals, local loops,
-try/catch, artifact files, and runtime tool discovery.
+MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
+primitive procedures into a persistent JavaScript evaluator, so agents can build
+compound procedures, keep state in an environment, and evaluate work
+incrementally.
 
 ```js
-await tools.new_page({ url: "https://example.com" });
+async function pageTitle(url) {
+  await tools.new_page({ url });
+  return await api.evalTool("evaluate_script", () => document.title);
+}
 
-return await api.evalTool("evaluate_script", () => ({
-  title: document.title,
-  links: [...document.links].map((link) => link.href).slice(0, 10)
-}));
+return await pageTitle("https://example.com");
 ```
 
-The useful shape is MCP-like interaction where the model sends compact calls,
-while browser logic, extraction, retries, and large intermediate data stay
-inside the evaluator.
+The useful shape is not one huge script. Define small compound procedures,
+evaluate one expression, inspect the compact value, then choose the next
+expression. Tool loops, extraction, retries, and large intermediate observations
+stay inside the evaluator environment.
 
 ## Install and Usage
 
@@ -82,7 +84,8 @@ npx mcp2repl \
 ```
 
 For agent sessions, put stable options in environment variables so individual
-calls stay short, then send one multi-line evaluator program:
+calls stay short. Then load a task module that defines compound procedures and
+evaluate medium-sized steps:
 
 ```bash
 export MCP2REPL_CONFIG=./examples/chrome-devtools-visible.json
@@ -93,11 +96,10 @@ export MCP2REPL_QUIET=1
 export MCP2REPL_TIMEOUT=240
 export MCP2REPL_MAX_OUTPUT_CHARS=6000
 
-node ./src/cli.js -e '
-await api.load(".tmp/task-harness.js");
-const probe = await appleTask.probe({});
-return await appleTask.final({ probe });
-'
+node ./src/cli.js -e 'await api.load(".tmp/apple-task-module.js"); return await apple.setup();'
+node ./src/cli.js -e 'return await apple.observeProducts(["air", "pro"]);'
+node ./src/cli.js -e 'return await apple.observeBuyingOptions(["air", "pro"]);'
+node ./src/cli.js -e 'const draft = await apple.composeRecommendation(); return await apple.validate(draft);'
 ```
 
 The first session client call auto-starts a daemon when `--config` or
@@ -109,16 +111,16 @@ and `-e -` reads the program from stdin:
 
 ```bash
 printf '%s\n' \
-  'await api.load(".tmp/task-harness.js");' \
-  'const probe = await appleTask.probe({});' \
-  'return await appleTask.final({ probe });' \
+  'await api.load(".tmp/apple-task-module.js");' \
+  'await apple.setup();' \
+  'return await apple.observeProducts(["air", "pro"]);' \
   | node ./src/cli.js -e -
 ```
 
-This keeps the interface as one evaluator entrypoint while still supporting
-large multi-line JavaScript. Use `--load` and `--call` when you deliberately
-want separate checkpoints; prefer one multi-line `-e` when the steps are known
-up front.
+This keeps the interface as evaluator expressions over a persistent
+environment. Use `--load` to install a task module, then call named procedures
+with `-e` or `--call`. Prefer medium-sized, inspectable steps over a monolithic
+procedure that tries to finish the whole task in one evaluation.
 
 Print generated function docs for matching tools without starting an
 interactive session:

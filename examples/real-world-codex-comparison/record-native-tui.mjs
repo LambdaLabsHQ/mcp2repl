@@ -27,7 +27,7 @@ await ensureCommand("agg");
 await ensureCommand("ffmpeg");
 await ensureChrome(chromeUrl);
 await fs.mkdir(outDir, { recursive: true });
-await fs.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-harness.js"), { force: true });
+await fs.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-module.js"), { force: true });
 
 const env = {
   ...process.env,

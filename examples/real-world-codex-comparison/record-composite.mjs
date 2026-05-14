@@ -32,7 +32,7 @@ await ensureCommand("ffmpeg");
 await ensureChrome(chromeUrl);
 await fs.mkdir(terminalDir, { recursive: true });
 await fs.mkdir(browserDir, { recursive: true });
-await fs.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-harness.js"), { force: true });
+await fs.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-task-module.js"), { force: true });
 await resetChrome(chromeUrl);
 
 const env = {

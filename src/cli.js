@@ -69,7 +69,7 @@ Options:
   --arg <value>          Add one command argument. Can be repeated.
   -e, --eval <code>      Evaluate JavaScript once and exit. Repeat to append lines; use - to read stdin.
   -f, --file <path>      Evaluate a JavaScript file and exit.
-  --load <path>          Load a JavaScript harness in an async IIFE and exit.
+  --load <path>          Load a JavaScript task module in an async IIFE and exit.
   --call <name>          Call a function already loaded in the evaluator context.
   --call-args <json>     JSON object argument for --call. Default: {}.
   --library <query>      Print generated function docs for matching MCP tools.

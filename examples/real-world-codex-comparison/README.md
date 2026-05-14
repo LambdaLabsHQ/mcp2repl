@@ -84,7 +84,7 @@ claim, ports, tradeoffs, recommendation fields, source URLs, and
 ## Variant Control
 
 All variants are launched by `run.mjs` with isolated Codex homes under the run
-artifact directory. The harness copies authentication files but ignores the
+artifact directory. The runner copies authentication files but ignores the
 user's normal MCP config, skills, and local session state.
 
 Pure Chrome MCP:
@@ -103,11 +103,13 @@ Interactive REPL:
 - Codex has shell access but no browser MCP tools.
 - The runner sets `MCP2REPL_*` defaults for config, server, session, JSON
   output, timeout, max output, and artifact directory.
-- Codex is instructed to create one harness file and run one multi-line
-  `node ./src/cli.js -e ...` program that loads the harness with
-  `api.load(path)`, calls `probe`, then calls `final`.
+- Codex is instructed to create one evaluator-side task module that defines
+  compound procedures on `globalThis`.
+- It should load the task module into the persistent evaluator environment,
+  then evaluate medium-sized procedures such as setup, observe one page slice,
+  compose, validate, and repair only missing fields.
 - Browser loops, retries, DOM extraction, and artifact handling should run
-  inside the evaluator.
+  inside those compound procedures.
 
 Prewritten REPL:
 
@@ -115,7 +117,8 @@ Prewritten REPL:
 - `skillInstalled: true`
 - Codex runs `scripted-repl-task.js` once through mcp2repl.
 - Codex must return the exact JSON object printed by the command.
-- This measures the amortized cost once a workflow has already become code.
+- This measures the amortized cost once the compound procedures are already
+  code.
 
 ## Validation
 
