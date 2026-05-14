@@ -18,6 +18,7 @@ let nextId = 1;
 let frameCount = 0;
 let stopping = false;
 let timer;
+let lastTargetLog = "";
 
 await fs.rm(frameDir, { recursive: true, force: true });
 await fs.mkdir(frameDir, { recursive: true });
@@ -51,7 +52,7 @@ async function captureFrame() {
     const result = await send("Page.captureScreenshot", {
       format: "jpeg",
       quality,
-      fromSurface: true
+      fromSurface: false
     });
     const filename = path.join(frameDir, `${String(frameCount).padStart(6, "0")}.jpg`);
     frameCount += 1;
@@ -149,9 +150,39 @@ async function findPageTarget(baseUrl) {
     !String(target.url ?? "").startsWith("devtools://") &&
     !/^https?:\/\/(127\.0\.0\.1|localhost):/i.test(String(target.url ?? ""))
   );
-  return pages.find((target) => /:\/\/(?:www\.)?apple\.com\//i.test(String(target.url ?? ""))) ??
-    pages.find((target) => /^https?:\/\//.test(String(target.url ?? ""))) ??
-    pages[0];
+  const ranked = pages
+    .map((target) => ({ target, score: scoreTarget(target) }))
+    .sort((a, b) => b.score - a.score || String(a.target.id).localeCompare(String(b.target.id)));
+  const selected = ranked[0]?.target;
+  if (selected) await logSelectedTarget(selected, ranked[0].score);
+  return selected;
+}
+
+function scoreTarget(target) {
+  const url = String(target.url ?? "");
+  const title = String(target.title ?? "");
+  const text = `${url} ${title}`.toLowerCase();
+  let score = 0;
+
+  if (/^https?:\/\//i.test(url)) score += 10;
+  if (/:\/\/(?:www\.)?apple\.com\//i.test(url)) score += 50;
+
+  if (/\/us\/shop\/buy-mac\/macbook-(air|pro)/i.test(url)) score += 500;
+  if (/\/mac\/compare\/?/i.test(url)) score += 450;
+  if (/\/macbook-(air|pro)\/?/i.test(url)) score += 400;
+  if (/macbook|mac models|buy mac/i.test(`${url} ${title}`)) score += 120;
+
+  if (/\/iphone\/?|iphone/i.test(text)) score -= 300;
+  if (/^https:\/\/www\.apple\.com\/?$/i.test(url) || title.trim().toLowerCase() === "apple") score -= 200;
+  if (/about:blank|new tab/i.test(text)) score -= 500;
+  return score;
+}
+
+async function logSelectedTarget(target, score) {
+  const line = `${target.id} ${score} ${target.title} ${target.url}`;
+  if (line === lastTargetLog) return;
+  lastTargetLog = line;
+  await fs.appendFile(path.join(outDir, "selected-targets.log"), `${new Date().toISOString()} ${line}\n`);
 }
 
 async function injectOverlay() {

@@ -7,20 +7,20 @@ prompt was run three ways:
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | External validation | pass | pass | pass |
-| Wall-clock video time | 273.1s | 174.6s | 113.7s |
-| Time vs Pure Chrome MCP | 1.00x | 0.64x | 0.42x |
-| Total tokens | 1,094,568 | 184,108 | 105,970 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.17x | 0.10x |
-| Total token reduction vs Pure Chrome MCP | baseline | 83.2% less | 90.3% less |
-| Uncached input + output | 66,728 | 34,860 | 13,298 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.52x | 0.20x |
-| Uncached reduction vs Pure Chrome MCP | baseline | 47.8% less | 80.1% less |
+| Wall-clock video time | 273.1s | 214.2s | 113.7s |
+| Time vs Pure Chrome MCP | 1.00x | 0.78x | 0.42x |
+| Total tokens | 1,094,568 | 175,735 | 105,970 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.16x | 0.10x |
+| Total token reduction vs Pure Chrome MCP | baseline | 83.9% less | 90.3% less |
+| Uncached input + output | 66,728 | 18,807 | 13,298 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.28x | 0.20x |
+| Uncached reduction vs Pure Chrome MCP | baseline | 71.8% less | 80.1% less |
 | Top-level operations | 23 MCP tool calls | 3 shell commands + 1 file edit | 1 shell command |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
-Pure Chrome MCP is the baseline. The interactive REPL used 16.8% of the
-baseline total tokens and finished 36.1% faster, while still passing the same
+Pure Chrome MCP is the baseline. The interactive REPL used 16.1% of the
+baseline total tokens and finished 21.6% faster, while still passing the same
 external validator. The prewritten REPL used 9.7% of the baseline total tokens
 and finished 58.4% faster; that is the amortized path once exploration becomes
 reusable code.

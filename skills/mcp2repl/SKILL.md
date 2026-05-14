@@ -103,6 +103,10 @@ Use visible Chrome when the user wants to observe browser actions:
 node ./src/cli.js --quiet --json --max-output-chars 6000 --timeout 180 --config ./examples/chrome-devtools-visible.json --server chrome-devtools --file ./task.js
 ```
 
+When a visible Chrome tab is already open for recording or user observation,
+reuse that tab. Prefer `navigate_page` on the current tab and avoid `new_page`
+unless the task explicitly requires a separate tab.
+
 For multi-step work, keep one MCP connection alive with a session:
 
 ```bash

@@ -20,14 +20,14 @@ Model: `gpt-5.5`
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | External validation | pass | pass | pass |
-| Wall-clock video time | 273.1s | 174.6s | 113.7s |
-| Time vs Pure Chrome MCP | 1.00x | 0.64x | 0.42x |
-| Total tokens | 1,094,568 | 184,108 | 105,970 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.17x | 0.10x |
-| Total token reduction vs Pure Chrome MCP | baseline | 83.2% less | 90.3% less |
-| Uncached input + output | 66,728 | 34,860 | 13,298 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.52x | 0.20x |
-| Uncached reduction vs Pure Chrome MCP | baseline | 47.8% less | 80.1% less |
+| Wall-clock video time | 273.1s | 214.2s | 113.7s |
+| Time vs Pure Chrome MCP | 1.00x | 0.78x | 0.42x |
+| Total tokens | 1,094,568 | 175,735 | 105,970 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.16x | 0.10x |
+| Total token reduction vs Pure Chrome MCP | baseline | 83.9% less | 90.3% less |
+| Uncached input + output | 66,728 | 18,807 | 13,298 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.28x | 0.20x |
+| Uncached reduction vs Pure Chrome MCP | baseline | 71.8% less | 80.1% less |
 | Top-level operations | 23 MCP tool calls | 3 shell commands + 1 file edit | 1 shell command |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
@@ -37,7 +37,7 @@ Run records:
 | Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | pure-mcp | `2026-05-14T11-05-39-671Z` | 1,088,773 | 1,027,840 | 60,933 | 5,795 | 1,032 | 1,094,568 | 66,728 | `{"agent_message":4,"mcp_tool_call":23}` |
-| interactive-repl | `2026-05-14T13-49-06-905Z` | 176,769 | 149,248 | 27,521 | 7,339 | 1,142 | 184,108 | 34,860 | `{"agent_message":5,"command_execution":3,"file_change":1}` |
+| interactive-repl | `2026-05-14T14-33-00-641Z` | 170,573 | 156,928 | 13,645 | 5,162 | 696 | 175,735 | 18,807 | `{"agent_message":5,"command_execution":3,"file_change":1}` |
 | scripted-repl | `2026-05-14T11-12-32-851Z` | 101,308 | 92,672 | 8,636 | 4,662 | 51 | 105,970 | 13,298 | `{"command_execution":1,"agent_message":1}` |
 
 ## Task
@@ -192,14 +192,14 @@ Composite recordings from May 14, 2026:
 | Variant | Composite MP4 | Duration | External validation |
 | --- | --- | ---: | --- |
 | Pure Chrome MCP | `.tmp/recordings/20260514T124702Z-pure-mcp-composite/composite.mp4` | 273.1s | pass |
-| Interactive REPL | `.tmp/recordings/20260514T133141Z-interactive-repl-composite/composite.mp4` | 174.6s | pass |
+| Interactive REPL | `.tmp/recordings/20260514T142842Z-interactive-repl-composite/composite.mp4` | 214.2s | pass |
 | Prewritten REPL | `.tmp/recordings/20260514T125801Z-scripted-repl-composite/composite.mp4` | 113.7s | pass |
 
 Final comparison video:
 
 | Artifact | What it shows |
 | --- | --- |
-| `.tmp/recordings/20260514T135245Z-three-way-comparison/final-time-token-comparison.mp4` | Three synchronized rows with a persistent top metrics bar. The bar aligns wall-clock time with total token usage: Pure Chrome MCP is the baseline, Interactive REPL is 36.1% faster and uses 83.2% fewer tokens, and Prewritten REPL is 58.4% faster and uses 90.3% fewer tokens. |
+| `.tmp/recordings/20260514T143809Z-three-way-comparison/final-time-token-comparison.mp4` | Three synchronized rows with a persistent top metrics bar. The bar aligns wall-clock time with total token usage: Pure Chrome MCP is the baseline, Interactive REPL is 21.6% faster and uses 83.9% fewer tokens, and Prewritten REPL is 58.4% faster and uses 90.3% fewer tokens. |
 
 Each composite directory also includes `terminal/codex.cast`,
 `terminal/codex.mp4`, `browser/recording.mp4`, `sample.jpg`, and
