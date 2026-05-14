@@ -122,12 +122,16 @@ export async function createToolFacade(client) {
   for (const tool of tools) {
     const meta = tool._mcp2repl;
     byName[tool.name] = async (args = {}) => {
-      assertToolArguments(tool, args);
-      const result = await client.callTool({
-        name: tool.name,
-        arguments: args
-      });
-      return simplifyToolResult(result);
+      try {
+        assertToolArguments(tool, args);
+        const result = await client.callTool({
+          name: tool.name,
+          arguments: args
+        });
+        return simplifyToolResult(result);
+      } catch (error) {
+        throw attachToolContext(error, tool, args);
+      }
     };
 
     let safe = safeIdentifier(tool.name);
@@ -162,6 +166,21 @@ export async function createToolFacade(client) {
       return server == null && tool.name === name;
     })
   };
+}
+
+function attachToolContext(error, tool, args) {
+  error.mcp2repl = {
+    kind: "mcp-tool-call",
+    tool: tool.name,
+    safeName: tool._mcp2replSafeName,
+    server: tool._mcp2repl?.server,
+    upstreamName: tool._mcp2repl?.name,
+    attemptedKeys: Object.keys(args ?? {}),
+    schema: tool.inputSchema ?? { type: "object" },
+    call: `await tools.${tool._mcp2replSafeName ?? safeIdentifier(tool.name)}({ ...args })`,
+    repairHint: "Repair the primitive procedure argument object using this schema. Pass exactly one object and avoid unsupported keys."
+  };
+  return error;
 }
 
 function assertToolArguments(tool, args) {

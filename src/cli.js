@@ -8,7 +8,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { safeIdentifier } from "./mcp-client.js";
 import { loadConfig, parseArgs } from "./config.js";
 import { connectStdioMcp, connectStdioMcps, createMockClient } from "./mcp-client.js";
-import { formatResult, McpRepl } from "./evaluator.js";
+import { formatResult, McpRepl, repairErrorEnvelope } from "./evaluator.js";
 
 function wrapConnectedClient(connected, serverName) {
   return {
@@ -81,7 +81,7 @@ Options:
   --connect-timeout <s>  How long session clients wait for the socket. Default: 30.
   --json                 Print a compact JSON envelope instead of util.inspect text.
   --quiet                Pipe MCP server stderr instead of inheriting it.
-  --max-output-chars <n> If output is larger, write it to an artifact and print a reference.
+  --max-output-chars <n> If output is larger, return ResultTooLarge with artifact handle and repair hints.
   --timeout <seconds>    Evaluation timeout. Default: 60.
   -h, --help             Show help.
 
@@ -95,6 +95,7 @@ Injected globals:
   tools.safeName(args)          Call identifier-safe aliases.
   api.searchTools(query), api.describeTool(name), api.runtimeDocs()
   api.evalTool(nameOrQuery, fn, args) Auto-call eval/code/function-style MCP tools.
+  api.project(value, projection), api.print(value, options) Create compact model-facing views.
   api.unwrap(value)                 Normalize MCP/Codex/result envelopes.
   api.saveArtifact(name, value), api.readArtifact(name), api.callTool(server, tool, args)
 `);
@@ -220,7 +221,7 @@ async function runSessionDaemon(args) {
     } catch (error) {
       socket.end(JSON.stringify({
         ok: false,
-        error: error.stack ?? error.message
+        error: repairErrorEnvelope(error)
       }));
     }
   }
@@ -247,13 +248,7 @@ async function readSource(args) {
 }
 
 async function buildLoadSource(filePath) {
-  const code = await fs.readFile(filePath, "utf8");
-  return [
-    "return await (async () => {",
-    code,
-    `\nreturn { loaded: ${JSON.stringify(path.resolve(filePath))} };`,
-    "})()"
-  ].join("\n");
+  return `return await api.load(${JSON.stringify(path.resolve(filePath))})`;
 }
 
 function buildCallSource(args) {
@@ -306,7 +301,11 @@ async function main() {
     }
     const response = await sendSessionRequest(args, source);
     if (!response.ok) {
-      process.stderr.write(`${response.error}\n`);
+      const text = args.json
+        ? JSON.stringify({ ok: false, error: response.error })
+        : formatSessionError(response.error);
+      const stream = args.json ? process.stdout : process.stderr;
+      stream.write(`${text}\n`);
       process.exitCode = 1;
       return;
     }
@@ -374,6 +373,13 @@ async function main() {
       }
     }
     rl.close();
+  } catch (error) {
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify({ ok: false, error: repairErrorEnvelope(error) })}\n`);
+    } else {
+      process.stderr.write(`${formatSessionError(repairErrorEnvelope(error))}\n`);
+    }
+    process.exitCode = 1;
   } finally {
     await repl.close();
   }
@@ -383,3 +389,14 @@ main().catch((error) => {
   process.stderr.write(`${error.stack ?? error.message}\n`);
   process.exitCode = 1;
 });
+
+function formatSessionError(error) {
+  if (typeof error === "string") return error;
+  if (!error || typeof error !== "object") return String(error);
+  return [
+    `${error.name ?? "Error"}: ${error.message ?? ""}`.trim(),
+    error.repairHint ? `Repair hint: ${error.repairHint}` : null,
+    error.context ? `Context: ${JSON.stringify(error.context)}` : null,
+    error.stack
+  ].filter(Boolean).join("\n");
+}

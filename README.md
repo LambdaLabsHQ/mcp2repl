@@ -31,6 +31,13 @@ external validator. The prewritten REPL used 9.7% of the baseline total tokens
 and finished 58.4% faster; that is the amortized path once exploration becomes
 reusable code.
 
+After tightening the interactive REPL discipline to return typed-fact
+checkpoints, a stricter JSON-mode rerun passed at `504,349` total tokens and
+`30,109` uncached input+output tokens: `0.46x` and `0.45x` of the Pure Chrome
+MCP baseline. That run is documented in
+`examples/real-world-codex-comparison/README.md`; the video above remains the
+recorded three-way process comparison.
+
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build
 compound procedures, keep state in an environment, and evaluate work
@@ -99,7 +106,7 @@ export MCP2REPL_MAX_OUTPUT_CHARS=6000
 node ./src/cli.js -e 'await api.load(".tmp/apple-task-module.js"); return await apple.setup();'
 node ./src/cli.js -e 'return await apple.observeProducts(["air", "pro"]);'
 node ./src/cli.js -e 'return await apple.observeBuyingOptions(["air", "pro"]);'
-node ./src/cli.js -e 'const draft = await apple.composeRecommendation(); return await apple.validate(draft);'
+node ./src/cli.js -e 'const draft = await apple.composeRecommendation(); return await api.print(await apple.validate(draft), { maxChars: 6000 });'
 ```
 
 The first session client call auto-starts a daemon when `--config` or
@@ -161,13 +168,41 @@ value. Main globals:
 - `api.evalTool(nameOrQuery, fn, args)` adapts generic eval/code/function-style
   MCP tools. For Chrome DevTools MCP it embeds `args` into the function source
   and sends only the schema-valid `function` parameter to `evaluate_script`.
-- `api.load(path)` loads a JavaScript file into the same evaluator context.
+- `api.project(value, projection, options)` builds compact evaluator-side views.
+- `api.print(value, { projection, maxChars, fit })` returns a model-facing
+  envelope. It auto-fits the representation when possible. If the value is still
+  too large, it returns `ResultTooLarge`, `largeFields`, and a repair hint
+  instead of encouraging shell-side artifact inspection.
+- `api.load(path)` loads a JavaScript file into the same evaluator context and
+  returns a manifest with `loaded`, `digest`, `exports`, and `topLevel`.
 - `api.saveArtifact(name, value, { format })` writes large intermediate data to
-  `.mcp2repl/artifacts/` by default.
-- `api.readArtifact(name)` reads a previously saved artifact.
+  `.mcp2repl/artifacts/` by default and returns an evaluator-memory handle:
+  `{ name, kind, bytes, format, readWith }`.
+- `api.readArtifact(handleOrName)` reads a previously saved artifact back into
+  the evaluator.
 
 Use `--artifact-dir <path>` or `MCP2REPL_ARTIFACT_DIR` to choose another
 artifact directory.
+
+Projection specs are plain JSON-shaped objects. Normal keys select object
+fields, `$slice` limits arrays, and `$items` projects each array item:
+
+```js
+return await api.print(result, {
+  maxChars: 6000,
+  projection: {
+    invariantPassed: true,
+    options: {
+      $slice: 3,
+      $items: { productName: true, visibleStartingPrice: true, evidence: { $slice: 4, $items: true } }
+    }
+  }
+});
+```
+
+`api.print()` never changes the underlying evaluator value. When it needs to
+shorten the model-facing representation, the full value remains available as an
+evaluator-memory artifact in the returned `printer.artifact` handle.
 
 ## Agent Skill
 

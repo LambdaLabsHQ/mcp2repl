@@ -139,40 +139,25 @@ function renderPrompt(mode) {
     repl: [
       "Use the installed mcp2repl skill to discover the local REPL workflow.",
       "Codex has no browser MCP tools in this run; use shell only to run the local mcp2repl CLI against Chrome MCP.",
-      "Root constraint: do not drive the task as many shell turns. Avoid repeatedly carrying code or observations in the Codex transcript.",
+      "Do not run shell for environment discovery, placeholder file creation, source inspection, or artifact inspection. The only shell commands should read the skill quick start and invoke node ./src/cli.js evaluator expressions.",
+      "Root constraint: minimize top-level Codex turns. Browser loops, retries, extraction, validation, aggregation, and final projection belong inside the evaluator.",
       "Isolation constraint: do not read, copy, grep, inspect, or derive from examples/real-world-codex-comparison/scripted-repl-task.js, native outputs, previous experiment artifacts, or any prewritten Apple task implementation. Build the task module from the task prompt, the skill quick start, and runtime tool discovery only.",
-      "Use mcp2repl as an interactive evaluator: MCP tools are primitive procedures, the JavaScript you write defines compound procedures on globalThis, and the persistent session is the evaluator environment.",
-      "Do not manually start a session daemon. The first session client call auto-starts it when --config is present.",
-      "The runner sets MCP2REPL_* environment defaults for config, server, session, json, timeout, max output, and artifact directory. Use short commands only.",
-      "Create one concise task module under `.tmp/real-world-codex-comparison/apple-task-module.js` that exposes procedures such as globalThis.appleTask.setup(), observeProducts(), observeBuyingOptions(), composeRecommendation(), validateRecommendation(), and repairMissing().",
-      "Drive the task with medium-sized evaluator expressions. Load the task module, run setup, observe one logical slice, inspect the compact checkpoint, then choose the next expression. Do not try to finish the whole ambiguous task with one monolithic procedure unless all preceding checkpoints are already validated.",
-      "Keep intermediate evaluator results small and decision-oriented. Save raw observations and large evidence in api.saveArtifact(); return only the information needed to choose the next expression.",
-      "Do not use inline --eval browser programs. Do not paste browser JavaScript into shell commands after the task module is loaded.",
+      "Use mcp2repl as an interactive evaluator: MCP tools are primitive procedures, task JavaScript defines compound procedures on globalThis, and the persistent session is the evaluator environment.",
+      "The runner sets MCP2REPL_* defaults for config, server, session, JSON, timeout, max output, and artifact directory. Do not manually start a daemon; the first session client call auto-starts it.",
+      "Read at most the first 45 lines of the mcp2repl skill, then write one task module under `.tmp/real-world-codex-comparison/apple-task-module.js` directly.",
+      "The task module must expose globalThis.appleTask.probe() and globalThis.appleTask.final(). probe() must setup Chrome, observe all required Apple pages, compose typed facts, run one bounded evaluator-side fallback for missing typed specs, validate, save raw evidence as artifacts, and return api.print({ invariantPassed, missing, qualityFailures, options:[{ productName, price, chip, memory, storage, display, battery, ports, evidence }], sources }, { maxChars: 6000 }). final() must be a pure projection from the validated typed facts, run its own compact presentation-quality validation, and return api.print(compactFinal, { maxChars: 6000 }).",
+      "After writing the module, use only two normal evaluator expressions: load+probe, then final if probe passes and the compact typed facts visibly match the three product scenarios. Patch only for a syntax/runtime error, probe invariantPassed:false, non-empty qualityFailures, or visibly wrong product-scoped facts in probe. Once final() returns ok:true with invariantPassed:true, return it immediately; do not polish optional qualitative fields.",
+      "Do not use inline --eval browser programs after the task module is loaded. Do not return raw final objects, raw page text, full arrays, labels, controls, snippets, screenshots, or snapshots to Codex.",
       "Use the existing visible Chrome tab opened by the recorder. Do not call new_page or create additional browser pages/tabs. Navigate the current tab with navigate_page for every Apple URL so the observable Chrome window shows the work.",
       "Do not call tools.navigate_page directly. In the task module, include a small generic procedure that first calls api.callTool('chrome-devtools','list_pages', {}), selects the visible Apple page with api.callTool('chrome-devtools','select_page', { pageIdx }), then calls api.callTool('chrome-devtools','navigate_page', { url }). This visible-page binding is required before every navigation.",
-      "Hard interaction budget: read at most the first 80 lines of the skill, write one concise task module, then use at most five evaluator expressions for setup, observations, composition, validation, and focused repair.",
-      "After writing the task module, move directly to evaluator expressions. Do not spend extra turns inspecting or polishing the module itself; patch only for a concrete syntax, runtime, or validation failure.",
-      "Keep the task module reasonably small, but correctness and clear procedure boundaries matter most. Do not build a broad resilient scraper, configurator engine, click automation library, compare-table parser framework, or large targeted-repair loop. Use simple line-based extraction from visible page text and controls.",
-      "The task module must not assume a fixed Apple DOM. It must observe page text and controls internally, extract compact evidence, and return compact checkpoints/final JSON. Wrap uncertain tool outputs with api.unwrap(...).",
-      "For page JavaScript, use api.evalTool('evaluate_script', (args) => { ... }, args) instead of calling tools.evaluate_script directly. Do not pass an args key to Chrome evaluate_script; api.evalTool embeds arguments into the function source and sends only schema-valid MCP arguments.",
+      "Keep the task module concise. Use simple line-based extraction from visible page text and controls; do not build a broad scraper, configurator engine, click library, compare-table framework, or repair loop.",
+      "The task module must not assume a fixed Apple DOM. Wrap uncertain tool outputs with api.unwrap(...). For page JavaScript, use api.evalTool('evaluate_script', (args) => { ... }, args), not tools.evaluate_script with unsupported args.",
       "Before visiting product pages, navigate the current tab to https://www.apple.com/ in the evaluator and set a US English Apple session cookie/localStorage. If any Apple URL lands on /choose-country-region/, the task module must recover by selecting United States or resetting the US session and renavigating; do not treat the country chooser as product evidence.",
-      "Apple shop prices often appear as strings like 'From $1099 or $91.58/mo.' or '13-inch ... From $1099 ...'. Extract the first From/Starting-at dollar amount as the product price. Do not discard a line merely because it also contains /mo or monthly installment text; just ignore the smaller monthly amount.",
-      "For configurator-style pages, do not click through every configuration. Extract a compact text corpus from visible body text plus labels, buttons, inputs, option values, aria-labels, selected controls, and nearby parent text. Product size and price may be split across controls rather than one body line.",
-      "For this Apple task, price extraction must be size-specific from the public buy pages, not from compare placeholders or education promos: on the MacBook Air buy page extract the line/window matching 13-inch for the 13-inch Air price and the line/window matching 15-inch for the 15-inch Air price; on the MacBook Pro buy page extract the line/window matching 14-inch for the 14-inch Pro price. Ignore values from 'education savings', trade-in, AppleCare, delivery fees, and compare-page placeholders such as '$price.display.smart' or very small app/service prices.",
-      "A reliable Apple extraction strategy is line-based: preserve document.body.innerText newlines, then on buy pages find the size label line ('13-inch', '15-inch', '14-inch') and read the nearest following 'From $...' line. For Air memory/storage, the public buy page exposes lines like 'Available in 16GB, 24GB, or 32GB' and 'Available in 512GB to 4TB'; these can support both Air sizes. For Pro, use the Pro buy page plus compare/product page rows; do not use Air rows for Pro.",
-      "The scenarios require at least 16GB memory and at least 512GB storage. A higher visible option satisfies the requirement: 'Available in 24GB...' satisfies at least 16GB, and 'Available in 1TB to 8TB' satisfies at least 512GB. Do not mark storage unknown merely because the visible Pro range starts at 1TB.",
-      "Validate product separation in validateRecommendation(): 13-inch Air and 15-inch Air must not have the same size-specific price unless the page genuinely shows the same size-specific price; Pro must not inherit Air display, Air weight, or Air evidence. If validation fails, call repairMissing() for the missing fields only.",
-      "Validation checkpoints must not include the full options array. Return only { invariantPassed, missing, prices, counts }. Compose the final full answer only after validation passes.",
-      "Final answer fields and evidence entries must also be compact. Do not copy legal, financing, footer, or long Apple testing paragraphs into the final JSON; summarize them as short visible facts such as 'Apple page references 16GB unified memory and 512GB SSD test configuration.'",
-      "After browser work starts, treat artifacts as evaluator-side memory, not model-facing diagnostics.",
-      "Artifacts are evaluator-environment values, not a shell-side compression channel. If a result is too large or malformed, repair the compound procedure that produced it and rerun that procedure.",
-      "If an evaluator expression fails, use the error message and stack from that expression as the diagnostic, then make one focused repair to the corresponding compound procedure before continuing in the evaluator.",
-      "Implement composeRecommendation() and validateRecommendation() so every required field is checked. If any scenario is missing price, chip, memory, storage, or two evidence facts, use repairMissing() for one focused evaluator-side observation; do not return invariantPassed:false unless Apple pages are inaccessible or Apple no longer exposes a public field.",
-      "For this Apple task, composeRecommendation() may use compare/product/buy page text together. Do not spend time implementing structural compare dropdown automation unless simple line extraction fails.",
-      "Large observations must be saved with api.saveArtifact() and summarized, not printed.",
+      "Apple extraction rules: preserve body.innerText newlines; for size-specific prices read the nearest From/Starting-at dollar after '13-inch', '15-inch', or '14-inch' on public buy pages; ignore education, trade-in, AppleCare, monthly installments, compare placeholders, and tiny app/service prices.",
+      "Entity-scoped extraction rule: keep separate typed fact buckets for 13-inch Air, 15-inch Air, 14-inch Pro, shared Air facts, and shared Pro facts. Never satisfy a final product field from a global first regex match or broad page blob. Pro final fields/evidence must not mention MacBook Air; Air final fields/evidence must not mention MacBook Pro.",
+      "Typed spec rules: memory fields must come from capacity facts matching GB unified memory; storage fields must come from capacity facts matching 512GB/1TB/2TB/4TB/8TB SSD or storage. A higher capacity satisfies the minimum. If exact configured memory/storage is split or hidden, present conservative minimum-satisfying facts such as '16GB+ unified memory visible' or '512GB+ SSD/storage visible' only when those capacities appear somewhere in the observed Apple text. Do not fill memory/storage/display/ports with broad marketing paragraphs. Do not use legacy/comparison labels such as Intel, M1, or M2 as the current chip for these M5 MacBook scenarios.",
+      "Final presentation rules: synthesize short factual fields from typed facts. Evidence is 2-4 short facts, not raw snippets. Optional fields such as portability, display, battery, and ports may use short conservative phrases or unknown/verify wording when exact evidence is not clean. Never copy Apple Card, Wallet, credit, checkout, bag, delivery, footer, legal, gallery, footnote, testing, preproduction, iMac, iPhone, iPad, Apple Watch, AirPods, or UI-control text into final product fields. Display should be a short display/screen fact or unknown; portability should be a short size/weight/travel fact or unknown. Battery claims must include a number plus hours or be unknown. Ports notes must mention a whole-word relevant port/display term or be unknown; 'Support' is not a port fact. final() must validate final-field quality and fail if chip/display/battery/ports/evidence fields are broad paragraphs over 140 chars, contain noise text, unrelated product names, or if ports is not unknown and lacks a whole-word match for Thunderbolt, USB-C, MagSafe, HDMI, SDXC, port, ports, or external display. If final quality validation fails, return invariantPassed:false with missing reasons so Codex can patch once.",
       "Do not hard-code prices, chip names, memory, storage, or evidence. Every non-unknown fact must come from a probe result returned by mcp2repl in this run.",
-      "Do not print full arrays of labels, controls, snippets, page text, screenshots, or snapshots. Save raw compact evidence with api.saveArtifact() if needed, and return only final JSON.",
-      "Create temporary JavaScript files under `.tmp/real-world-codex-comparison/`.",
       "Do not use curl, wget, Python requests, browserless scraping, or direct network fetches outside Chrome MCP."
     ].join(" "),
     scripted: [
@@ -552,6 +537,8 @@ function summarizeRun(name, jsonl, finalText) {
   }
   usage.total_tokens = usage.input_tokens + usage.output_tokens;
 
+  const finalJson = parseFinalJson(finalText);
+  const validation = validateResult(finalJson);
   return {
     name,
     skillInstalled: variantByName(name)?.skillInstalled ?? false,
@@ -561,23 +548,28 @@ function summarizeRun(name, jsonl, finalText) {
     failedItems,
     humanCodexOutput,
     finalText: finalText.trim(),
-    finalJson: parseFinalJson(finalText),
-    externalValidationPassed: resultLooksValid(parseFinalJson(finalText))
+    finalJson,
+    externalValidationPassed: validation.passed,
+    externalValidationFailures: validation.failures
   };
 }
 
-function resultLooksValid(parsed) {
-  if (!parsed || parsed.invariantPassed !== true) return false;
+function validateResult(parsed) {
+  const failures = [];
+  if (!parsed) return { passed: false, failures: ["result is not parseable JSON"] };
+  if (parsed.invariantPassed !== true) failures.push("invariantPassed is not true");
   const options = parsed.options;
-  if (!Array.isArray(options) || options.length < 3) return false;
+  if (!Array.isArray(options) || options.length < 3) {
+    failures.push("options must contain at least three entries");
+    return { passed: false, failures };
+  }
 
   const normalized = options.map((option) => ({
     option,
     text: JSON.stringify(option).toLowerCase(),
     identityText: [
       option.productName,
-      option.scenario,
-      option.display
+      option.scenario
     ].map((value) => String(value ?? "")).join(" ").toLowerCase(),
     price: parseDollar(option.configuredOrRelevantPrice) ?? parseDollar(option.visibleStartingPrice)
   }));
@@ -585,21 +577,136 @@ function resultLooksValid(parsed) {
   const air13 = normalized.find(({ identityText }) => /13[^a-z0-9]*inch.*macbook air|macbook air.*13[^a-z0-9]*inch/.test(identityText));
   const air15 = normalized.find(({ identityText }) => /15[^a-z0-9]*inch.*macbook air|macbook air.*15[^a-z0-9]*inch/.test(identityText));
   const pro14 = normalized.find(({ identityText }) => /14[^a-z0-9]*inch.*macbook pro|macbook pro.*14[^a-z0-9]*inch/.test(identityText));
-  if (!air13 || !air15 || !pro14) return false;
+  if (!air13) failures.push("missing distinct 13-inch MacBook Air option");
+  if (!air15) failures.push("missing distinct 15-inch MacBook Air option");
+  if (!pro14) failures.push("missing distinct 14-inch MacBook Pro option");
 
   for (const { option, price } of normalized) {
     const evidence = Array.isArray(option.evidence) ? option.evidence : [];
-    if (!price || price < 900) return false;
+    if (!price || price < 900) failures.push(`${optionLabel(option)} has no laptop price above $900`);
     for (const key of ["productName", "officialUrl", "chip", "memory", "storage"]) {
-      if (isUnknown(option[key])) return false;
+      if (isUnknown(option[key])) failures.push(`${optionLabel(option)} has unknown ${key}`);
     }
-    if (evidence.length < 2) return false;
-    if (!evidence.some((item) => /macbook|m[0-9]|memory|storage|display|battery|thunderbolt|magsafe|from \$|\$[0-9]/i.test(String(item)))) return false;
+    if (evidence.length < 2) failures.push(`${optionLabel(option)} has fewer than two evidence facts`);
+    if (!evidence.some((item) => /macbook|m[0-9]|memory|storage|display|battery|thunderbolt|magsafe|from \$|\$[0-9]/i.test(String(item)))) {
+      failures.push(`${optionLabel(option)} evidence does not look page-derived`);
+    }
+    if (String(option.chip ?? "").length > 140) failures.push(`${optionLabel(option)} chip field is a broad paragraph, not a chip fact`);
+    if (String(option.display ?? "").length > 140) failures.push(`${optionLabel(option)} display field is a broad paragraph, not a display fact`);
+    if (String(option.weightOrPortability ?? "").length > 140) failures.push(`${optionLabel(option)} portability field is a broad paragraph, not a portability fact`);
+    if (String(option.batteryOrPowerClaim ?? "").length > 140) failures.push(`${optionLabel(option)} battery field is a broad paragraph, not a battery fact`);
+    if (String(option.portsOrExternalDisplayNotes ?? "").length > 140) failures.push(`${optionLabel(option)} ports field is a broad paragraph, not a port fact`);
+    if (!/m[0-9]/i.test(String(option.chip ?? ""))) failures.push(`${optionLabel(option)} chip field does not contain an M-series chip`);
+    if (!/memory/i.test(String(option.memory ?? ""))) failures.push(`${optionLabel(option)} memory field is not a memory fact`);
+    if (!/(storage|ssd)/i.test(String(option.storage ?? ""))) failures.push(`${optionLabel(option)} storage field is not a storage fact`);
+    failures.push(...presentationQualityFailures(option));
   }
 
-  if (air13.price && air15.price && air13.price === air15.price) return false;
-  if (/macbook air/.test(pro14.text) && !/macbook pro/.test(pro14.text)) return false;
-  return true;
+  if (air13?.price && air15?.price && air13.price === air15.price) {
+    failures.push("13-inch and 15-inch Air prices must differ");
+  }
+  if (air13) failures.push(...productSeparationFailures(air13, "air", "13-inch MacBook Air"));
+  if (air15) failures.push(...productSeparationFailures(air15, "air", "15-inch MacBook Air"));
+  if (pro14) failures.push(...productSeparationFailures(pro14, "pro", "14-inch MacBook Pro"));
+  return { passed: failures.length === 0, failures };
+}
+
+function resultLooksValid(parsed) {
+  return validateResult(parsed).passed;
+}
+
+function productSeparationFailures(entry, family, label) {
+  const option = entry.option;
+  const keyText = [
+    option.chip,
+    option.memory,
+    option.storage,
+    option.display,
+    option.weightOrPortability,
+    option.batteryOrPowerClaim,
+    option.portsOrExternalDisplayNotes,
+    ...(Array.isArray(option.evidence) ? option.evidence : [])
+  ].map((value) => String(value ?? "")).join(" ").toLowerCase();
+  const failures = [];
+
+  if (family === "pro") {
+    if (/macbook air/.test(keyText)) failures.push(`${label} required fields include MacBook Air evidence`);
+    if (/\b18\s*hours?\b/i.test(String(option.batteryOrPowerClaim ?? ""))) failures.push(`${label} battery field looks like an Air battery fact`);
+    if (/superfast straight out of the box/i.test(keyText)) failures.push(`${label} required fields include Air storage/memory marketing text`);
+    if (!/(macbook pro|liquid retina xdr|thunderbolt|hdmi|sdxc|m[0-9]\s+(pro|max))/i.test(keyText)) {
+      failures.push(`${label} lacks Pro-specific evidence in required fields`);
+    }
+  } else {
+    if (/macbook pro/.test(keyText)) failures.push(`${label} required fields include MacBook Pro evidence`);
+    if (!/(macbook air|magsafe|up to 18 hours|sky blue|13-inch|15-inch)/i.test(keyText)) {
+      failures.push(`${label} lacks Air-specific evidence in required fields`);
+    }
+  }
+  return failures;
+}
+
+function presentationQualityFailures(option) {
+  const label = optionLabel(option);
+  const failures = [];
+  const noisyFieldNames = [
+    "chip",
+    "memory",
+    "storage",
+    "display",
+    "weightOrPortability",
+    "batteryOrPowerClaim",
+    "portsOrExternalDisplayNotes",
+    "evidence"
+  ];
+  for (const key of noisyFieldNames) {
+    const value = key === "evidence"
+      ? (Array.isArray(option.evidence) ? option.evidence.join(" ") : "")
+      : String(option[key] ?? "");
+    if (isNoiseText(value)) failures.push(`${label} ${key} contains legal/payment/footer/gallery/control text`);
+    if (containsUnrelatedAppleProduct(value)) failures.push(`${label} ${key} contains an unrelated Apple product name`);
+    if (containsLegacyMacLabel(value)) failures.push(`${label} ${key} contains a legacy/comparison Mac label`);
+  }
+
+  const battery = String(option.batteryOrPowerClaim ?? "");
+  if (!isUnknown(battery) && !/([0-9]{1,2}\s*(?:-|to)?\s*[0-9]{0,2}\s*hours?|battery)/i.test(battery)) {
+    failures.push(`${label} battery field is not a battery claim`);
+  }
+
+  const ports = String(option.portsOrExternalDisplayNotes ?? "");
+  if (!isUnknown(ports) && !/\b(ports?|thunderbolt|usb-?c|magsafe|hdmi|sdxc|external display)\b/i.test(ports)) {
+    failures.push(`${label} ports field is not a port or display fact`);
+  }
+
+  const portability = String(option.weightOrPortability ?? "");
+  if (!isUnknown(portability) && !/(pounds?|lbs?|kg|thin|lightweight|portable|travel|13-inch|15-inch|14-inch)/i.test(portability)) {
+    failures.push(`${label} portability field is not a size, weight, or travel fact`);
+  }
+
+  const evidence = Array.isArray(option.evidence) ? option.evidence : [];
+  for (const item of evidence) {
+    const text = String(item ?? "");
+    if (text.length > 180) failures.push(`${label} evidence item is too long to be a short fact`);
+    if (/^\s*(testing conducted|available in the u\.s\.|to access and use all apple card)/i.test(text)) {
+      failures.push(`${label} evidence uses footnote/legal text instead of a short product fact`);
+    }
+  }
+  return failures;
+}
+
+function isNoiseText(value) {
+  return /(apple card|wallet|credit approval|cash back|monthly installment|financing|trade[- ]?in|add to bag|checkout|delivery|footer|copyright|gallery updated|choose your|learn more|shop mac|compare all|privacy policy|terms of use|testing conducted|preproduction|production [0-9]{2}-inch|light (?:was )?off)/i.test(String(value ?? ""));
+}
+
+function containsUnrelatedAppleProduct(value) {
+  return /\b(iMac|iPhone|iPad|Apple Watch|AirPods)\b/i.test(String(value ?? ""));
+}
+
+function containsLegacyMacLabel(value) {
+  return /\b(Intel|M1|M2)\b/i.test(String(value ?? ""));
+}
+
+function optionLabel(option) {
+  return String(option?.productName || option?.scenario || "option");
 }
 
 function isUnknown(value) {
@@ -627,6 +734,19 @@ function renderMarkdown(summaries) {
     const uncachedInput = Math.max(0, summary.usage.input_tokens - summary.usage.cached_input_tokens);
     const uncachedTotal = uncachedInput + summary.usage.output_tokens;
     lines.push(`| ${summary.name} | ${summary.skillInstalled ? "yes" : "no"} | ${summary.codexMcpInjected ? "yes" : "no"} | ${summary.usage.input_tokens} | ${summary.usage.cached_input_tokens} | ${uncachedInput} | ${summary.usage.output_tokens} | ${summary.usage.reasoning_output_tokens} | ${summary.usage.total_tokens} | ${uncachedTotal} | ${summary.externalValidationPassed ? "true" : "false"} | ${summary.failedItems} | ${inlineCode(JSON.stringify(summary.itemTypes))} |`);
+  }
+
+  const validationFailures = summaries.filter((summary) => !summary.externalValidationPassed);
+  if (validationFailures.length > 0) {
+    lines.push("");
+    lines.push("## External Validation Failures");
+    for (const summary of validationFailures) {
+      lines.push("");
+      lines.push(`### ${summary.name}`);
+      for (const failure of summary.externalValidationFailures ?? []) {
+        lines.push(`- ${failure}`);
+      }
+    }
   }
 
   if (baseline) {

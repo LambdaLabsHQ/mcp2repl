@@ -7,52 +7,53 @@ metadata:
 
 # MCP-2-REPL
 
-Use `mcp2repl` when raw MCP tool calls would create a long transcript: repeated
-browser actions, polling, retries, multi-page extraction, batching, or local data
-processing.
-
-The CLI starts the runtime. Think in SICP terms: MCP tools become primitive
-procedures; task-specific JavaScript defines compound procedures; a session is a
-persistent evaluator environment; artifacts are named observations kept out of
-the model transcript.
+Use `mcp2repl` when raw MCP calls would create a long transcript. In SICP
+terms, MCP tools are primitive procedures, your task module defines compound
+procedures, a session is the evaluator environment, and artifacts are evaluator
+memory.
 
 ## Fast Path
 
-For token-sensitive browser work in this repository, use this shape and do not
-inspect `src/` for API details. If `MCP2REPL_*` environment defaults are set,
-commands stay short. Load a task module once, then evaluate medium-sized
-compound procedures:
+Do not inspect `src/` for API details. If `MCP2REPL_*` defaults are set, keep
+commands short. Write one task module, then run only decision-boundary
+expressions:
 
 ```bash
-node ./src/cli.js -e 'await api.load(".tmp/task-module.js"); return await task.setup();'
-node ./src/cli.js -e 'return await task.observe({ page: "home" });'
-node ./src/cli.js -e 'return await task.composeAndValidate();'
+node ./src/cli.js -e 'await api.load(".tmp/task-module.js"); return await task.probe();'
+node ./src/cli.js -e 'return await task.final();'
 ```
 
-`-e` accepts normal multi-line shell strings, can be repeated to append lines,
-and `-e -` reads the program from stdin.
+Task-module rules:
 
-```bash
-printf '%s\n' \
-  'await api.load(".tmp/task-module.js");' \
-  'await task.setup();' \
-  'return await task.observe({ page: "home" });' \
-  | node ./src/cli.js -e -
-```
+- Keep browser loops, retries, extraction, validation, and aggregation inside
+  JavaScript.
+- Return model-facing values with `api.print(value, { projection, maxChars })`.
+- Save raw page text/snapshots with `api.saveArtifact()`; synthesize final
+  fields from typed facts, not raw snippets.
+- When comparing multiple entities, keep typed facts keyed by entity and
+  source; do not fill final fields from a global first match or shared blob.
+- Final fields should be short typed facts. If extraction finds legal, footer,
+  payment, navigation, footnote, testing, or control text, return `unknown`
+  instead of copying it.
+- Validate final-field noise and length inside the task module before returning.
+- Checkpoints should expose compact typed facts and validation failures, not only
+  pass/fail, so the next evaluator expression is a real decision.
+- Artifacts are evaluator memory. Read them inside task procedures with
+  `api.readArtifact()`, not from shell.
+- Patch only after a concrete evaluator error or failed validation. Once
+  validation passes, return the printed value; do not polish optional fields.
 
-Inside the loaded task module:
+Useful calls:
 
 ```js
-await tools.navigate_page({ url: "https://example.com" });
-await mcp.chrome_devtools.navigate_page({ url: "https://example.com" });
 await api.callTool("chrome-devtools", "navigate_page", { url: "https://example.com" });
-await api.evalTool("evaluate_script", (args) => ({ title: document.title, args }), { ok: true });
-await api.load(".tmp/task-module.js");
-await api.saveArtifact("evidence.json", compactValue);
+const rawResult = await api.evalTool("evaluate_script", (args) => ({ title: document.title, args }), { ok: true });
+await api.saveArtifact("evidence.json", rawResult);
+return await api.print(rawResult, { projection: { ok: true, count: true }, maxChars: 6000 });
 ```
 
-Use `api.evalTool()` for page JavaScript. It embeds `args` into the function
-source and sends only schema-valid MCP arguments.
+`api.evalTool()` embeds `args` into page JavaScript and sends only schema-valid
+MCP arguments. `-e` accepts multi-line strings and `-e -` reads from stdin.
 
 ## When To Use
 
@@ -149,10 +150,12 @@ Core globals:
 - `api.evalTool(nameOrQuery, fn, args)` calls MCP tools whose schema accepts JavaScript/code/function text. It embeds `args` into the function source and sends only schema-valid tool arguments.
 - `api.listTools({ schemas: false })` returns a compact tool index.
 - `api.unwrap(value)` normalizes common MCP/Codex/result envelopes and parses JSON strings when possible.
-- `api.load(path)` loads a JavaScript file into the same evaluator context.
+- `api.project(value, projection, options)` builds compact evaluator-side views.
+- `api.print(value, { projection, maxChars, fit })` returns a model-facing envelope. It auto-fits the representation when possible; if the value is still too large, it returns `ResultTooLarge`, `largeFields`, and a repair hint.
+- `api.load(path)` loads a JavaScript file into the same evaluator context and returns `{ loaded, digest, exports, topLevel }`.
 - `api.runtimeDocs()` returns the runtime contract. Discovery helpers are synchronous plain values; tool calls and `api.saveArtifact()` are async.
-- `api.saveArtifact(name, value)` writes large intermediate data to a file.
-- `api.readArtifact(name)` reads a saved artifact back into the evaluator.
+- `api.saveArtifact(name, value)` writes large intermediate data and returns an evaluator-memory handle `{ name, kind, bytes, format, readWith }`.
+- `api.readArtifact(handleOrName)` reads a saved artifact back into the evaluator.
 - `sleep(ms)` is available for local waits.
 
 Keep the model-facing output compact. Filter large browser snapshots or API
@@ -176,9 +179,22 @@ For token-sensitive work, the agent should see compact observations,
 validation results, or the final value, not every intermediate browser action.
 Avoid monolithic procedures that try to complete a whole ambiguous task in one
 eval; they are harder to inspect and expensive to repair.
-Intermediate evaluator results should be small and decision-oriented. Save raw
+Intermediate evaluator results should be small and decision-oriented. Use
+`api.print()` or `api.project()` for model-facing checkpoints. Save raw
 observations and large evidence with `api.saveArtifact()`. Return the full
 answer only once validation passes.
+Every evaluator expression that returns data for the model should end in
+`api.print(...)` unless it is already a tiny scalar or status object. The final
+answer should use `api.print(finalValue, { projection: ..., maxChars: ... })`
+on the first attempt, not after a `ResultTooLarge` repair.
+Separate observation procedures from presentation procedures. Observation
+procedures may save raw snippets and page text as artifacts; final/presentation
+procedures should synthesize short factual fields from that evidence instead of
+passing raw snippets through.
+Projection specs are plain JSON-shaped objects: normal keys select object
+fields, `$slice` limits arrays, and `$items` projects each array item. If
+`api.print()` returns `ResultTooLarge`, repair the producing procedure or pass a
+narrower projection; do not inspect the artifact from shell.
 Artifacts are evaluator-environment values, not a shell-side compression
 channel. If a result is too large or malformed, repair the compound procedure
 that produced it and rerun that procedure. Use evaluator errors and stacks as

@@ -86,6 +86,75 @@ artifacts through shell-side tools. The remaining cost came from two focused
 procedure repairs, which points to a better default finalization pattern rather
 than a need for post-hoc file-size checks.
 
+After adding evaluator-level printing and repair diagnostics, the same
+interactive REPL variant was rerun again:
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T16-37-03-594Z` | 338,346 | 297,600 | 40,746 | 8,439 | 1,858 | 346,785 | 49,185 | `{"agent_message":8,"command_execution":8,"file_change":2}` |
+
+This run passed external validation with `0` failed items. It used `0.32x` Pure
+Chrome MCP total tokens and `0.74x` uncached tokens. Relative to the previous
+upper-level evaluator-discipline run, total tokens fell from `590,698` to
+`346,785` (`41.3%` less) and uncached tokens fell from `54,378` to `49,185`
+(`9.5%` less). The key behavior was visible in the transcript: when the final
+JSON exceeded the output limit, mcp2repl returned `ResultTooLarge` with
+`largeFields` such as `options[0].display` and `options[0].evidence[3]`, plus an
+evaluator repair hint and an evaluator-memory artifact handle. The agent did not
+inspect the artifact from shell; it repaired the final projection path and
+completed the task.
+
+The next runtime iteration made `api.print()` auto-fit successful model-facing
+values and moved the final printer pattern into the first 80 lines of the skill:
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T16-48-30-291Z` | 575,728 | 540,416 | 35,312 | 7,683 | 1,263 | 583,411 | 42,995 | `{"agent_message":9,"command_execution":7,"file_change":2}` |
+
+This passed external validation with `0` failed items. It confirmed that
+`api.print()` can fit a `9,461` character final value into a `5,545` character
+model-facing representation without returning `ResultTooLarge`. The run still
+performed one semantic repair because the successful printer envelope exposed
+diagnostic `largeFields`, which encouraged the agent to revisit broad
+marketing/testing snippets.
+
+The printer was then changed so successful auto-fit returns only small printer
+metadata; `largeFields` are reserved for actual `ResultTooLarge` failures. The
+prompt also made final procedures presentation projections rather than raw
+evidence dumps:
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T16-53-06-712Z` | 579,839 | 559,360 | 20,479 | 8,187 | 1,171 | 588,026 | 28,666 | `{"agent_message":7,"command_execution":7,"file_change":2}` |
+
+This also passed external validation with `0` failed items. Total tokens stayed
+high because the agent still made one semantic repair and repeated the browser
+observations, but uncached tokens fell to `28,666`: `47.3%` less than the
+upper-level evaluator-discipline run and `57.0%` less than Pure Chrome MCP. The
+remaining bottleneck is not schema injection or artifact leakage; it is the task
+module's first-pass semantic extraction for specification fields such as
+memory/storage.
+
+The latest interactive iteration makes the checkpoint itself a compact typed
+fact table rather than a pass/fail summary. This better matches the REPL
+discipline: each evaluator result must expose enough semantic state for the
+next decision. The external validator was also tightened to reject legal,
+footer, testing, unrelated-product, legacy-chip, and product-contamination
+facts.
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T17-45-08-743Z` | 494,353 | 474,240 | 20,113 | 9,996 | 1,979 | 504,349 | 30,109 | `{"agent_message":12,"command_execution":6,"file_change":4}` |
+
+This strict typed-facts run passed external validation with `0` failed items.
+It used `0.46x` Pure Chrome MCP total tokens and `0.45x` uncached tokens. It is
+more expensive than the earlier recorded interactive result because the compact
+checkpoint exposed and repaired real semantic issues: missing memory/storage
+facts, a reused 15-inch Air price, and overly broad product fields. The important
+result is that the corrections stayed inside the evaluator workflow: Codex did
+not inspect shell artifacts, did not read the prewritten script, and did not get
+Chrome MCP tools injected into its context.
+
 ## Task
 
 The task is deliberately ordinary and browser-heavy: help a normal buyer choose
