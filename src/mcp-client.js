@@ -16,7 +16,8 @@ export async function connectStdioMcp(spec) {
     command: spec.command,
     args: spec.args ?? [],
     env: { ...process.env, ...(spec.env ?? {}) },
-    cwd: spec.cwd ?? process.cwd()
+    cwd: spec.cwd ?? process.cwd(),
+    stderr: spec.stderr ?? (process.env.MCP2REPL_QUIET === "1" ? "pipe" : undefined)
   });
 
   const client = new Client(
@@ -29,9 +30,29 @@ export async function connectStdioMcp(spec) {
   return {
     client,
     close: async () => {
-      await client.close();
+      transport._process?.kill?.();
+      try {
+        await withCloseTimeout(client.close(), 1000);
+      } finally {
+        await withCloseTimeout(transport.close?.(), 1000);
+      }
     }
   };
+}
+
+async function withCloseTimeout(promise, ms) {
+  if (!promise) return;
+  let timer;
+  try {
+    await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, ms);
+      })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function connectStdioMcps(specs) {
@@ -101,6 +122,7 @@ export async function createToolFacade(client) {
   for (const tool of tools) {
     const meta = tool._mcp2repl;
     byName[tool.name] = async (args = {}) => {
+      assertToolArguments(tool, args);
       const result = await client.callTool({
         name: tool.name,
         arguments: args
@@ -112,6 +134,7 @@ export async function createToolFacade(client) {
     const count = collisions.get(safe) ?? 0;
     collisions.set(safe, count + 1);
     if (count > 0) safe = `${safe}_${count + 1}`;
+    tool._mcp2replSafeName = safe;
     bySafeName[safe] = byName[tool.name];
 
     if (meta?.server && meta?.name) {
@@ -139,6 +162,16 @@ export async function createToolFacade(client) {
       return server == null && tool.name === name;
     })
   };
+}
+
+function assertToolArguments(tool, args) {
+  if (args == null || Array.isArray(args) || typeof args !== "object") {
+    throw new TypeError([
+      `MCP tool '${tool.name}' expects a single argument object.`,
+      `Call it like: tools.${safeIdentifier(tool.name)}({ ...args }).`,
+      `Input schema: ${JSON.stringify(tool.inputSchema ?? { type: "object" })}`
+    ].join(" "));
+  }
 }
 
 function getStableSafeServerName(serverName, aliases, counts) {

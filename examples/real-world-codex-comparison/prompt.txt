@@ -1,0 +1,74 @@
+REAL_WORLD_MODE_INSTRUCTIONS
+
+Task:
+
+You are helping an ordinary person choose a MacBook from the public Apple website. They want a laptop for remote work, many browser tabs, video calls, light photo editing, and occasional travel. They prefer portability, but they want the machine to last several years.
+
+Hard constraints:
+
+- Do not log in.
+- Do not add anything to bag/cart.
+- Do not start checkout.
+- Do not enter personal information.
+- Use public Apple web pages only.
+
+Research the US English public Apple pages and interact with configurator / compare controls when useful. Keep the browser on `www.apple.com`, set or preserve US English locale when a prompt appears, and do not use non-US localized Apple pages.
+
+1. https://www.apple.com/macbook-air/
+2. https://www.apple.com/macbook-pro/
+3. https://www.apple.com/mac/compare/
+4. https://www.apple.com/us/shop/buy-mac/macbook-air
+5. https://www.apple.com/us/shop/buy-mac/macbook-pro
+
+Important browser-data budget:
+
+- Do not dump full page text, full snapshots, full footers, or long legal sections into the model context.
+- Prefer `evaluate_script` snippets that return only concise structured fields.
+- Keep each browser extraction result under about 2,000 characters.
+- Ignore footer navigation, legal fine print, unrelated accessories, and account/checkout links unless directly needed for a requested field.
+- If a page is too long, extract headings, visible prices, and nearby sentences matching MacBook, Air, Pro, 13-inch, 14-inch, 15-inch, M-series chip, memory, storage, display, battery, ports, weight.
+
+Compare at least these three shopping scenarios:
+
+1. Portable value option: 13-inch MacBook Air with at least 16GB memory and at least 512GB storage.
+2. Larger-screen Air option: 15-inch MacBook Air with at least 16GB memory and at least 512GB storage.
+3. Higher-headroom option: 14-inch MacBook Pro with at least 16GB memory and at least 512GB storage.
+
+For each scenario, extract from visible public pages:
+
+- scenario
+- productName
+- officialUrl
+- visibleStartingPrice
+- configuredOrRelevantPrice
+- chip
+- memory
+- storage
+- display
+- weightOrPortability
+- batteryOrPowerClaim
+- portsOrExternalDisplayNotes
+- upgradeTradeoffs
+- whyGoodForUser
+- whyRiskyOrOverkill
+- evidence: 2-4 short facts visible on the page
+
+Return one compact JSON object with:
+
+- userNeed
+- options: array with at least the three scenarios above
+- cheapestViableOption
+- bestBalancedOption
+- bestLongTermOption
+- rejectedOptionsOrCaveats
+- buyingChecklist: short list of what to verify before purchasing
+- sources: final Apple URLs visited
+- invariantPassed: true only if all three scenarios were researched, no login/cart/checkout was performed, every option has a productName, officialUrl, visible or configured price, chip, memory, storage, and at least two evidence facts, and none of those required fields are invented
+
+Rules:
+
+- Use browser interaction only through the allowed Chrome/browser automation path.
+- Do not use web search unless an Apple page fails to load or clearly redirects to a new official Apple location.
+- Do not use curl, wget, Python requests, direct HTTP clients, or filesystem scraping.
+- Do not invent current prices or specs. Use "unknown" when the page does not expose a fact.
+- Return only compact JSON.

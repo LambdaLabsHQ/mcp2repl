@@ -5,15 +5,13 @@
       "args": [
         "-y",
         "chrome-devtools-mcp@latest",
-        "--headless",
         "--isolated",
+        "--viewport=1440x1000",
         "--no-usage-statistics",
         "--no-performance-crux",
         "--chrome-arg=--lang=en-US",
         "--chrome-arg=--accept-lang=en-US,en",
-        "--chrome-arg=--disable-features=Translate",
-        "--chrome-arg=--no-sandbox",
-        "--chrome-arg=--disable-setuid-sandbox"
+        "--chrome-arg=--disable-features=Translate"
       ]
     }
   }

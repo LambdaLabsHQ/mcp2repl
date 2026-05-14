@@ -1,38 +1,48 @@
 # MCP-2-REPL
 
-MCP-2-REPL turns an arbitrary stdio MCP server into a persistent JavaScript evaluator.
-Instead of exposing dozens of hand-authored tools to the agent, it exposes one universal tool:
+MCP-2-REPL turns any stdio MCP server into a persistent JavaScript evaluator.
+On a real Apple shopping research task with visible Chrome, the same Codex
+prompt was run three ways:
 
-```text
-eval(code)
-```
+| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| --- | ---: | ---: | ---: |
+| External validation | pass | pass | pass |
+| Wall-clock video time | 273.1s | 174.6s | 113.7s |
+| Time vs Pure Chrome MCP | 1.00x | 0.64x | 0.42x |
+| Total tokens | 1,094,568 | 184,108 | 105,970 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.17x | 0.10x |
+| Total token reduction vs Pure Chrome MCP | baseline | 83.2% less | 90.3% less |
+| Uncached input + output | 66,728 | 34,860 | 13,298 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.52x | 0.20x |
+| Uncached reduction vs Pure Chrome MCP | baseline | 47.8% less | 80.1% less |
+| Top-level operations | 23 MCP tool calls | 3 shell commands + 1 file edit | 1 shell command |
+| Codex MCP injected | yes | no | no |
+| mcp2repl skill installed | no | yes | yes |
 
-Inside that evaluator, upstream MCP tools are available as ordinary async JavaScript functions:
+Pure Chrome MCP is the baseline. The interactive REPL used 16.8% of the
+baseline total tokens and finished 36.1% faster, while still passing the same
+external validator. The prewritten REPL used 9.7% of the baseline total tokens
+and finished 58.4% faster; that is the amortized path once exploration becomes
+reusable code.
+
+MCP gives an agent remote-control tools. MCP-2-REPL gives the agent a language
+surface over those tools: async JavaScript, persistent globals, local loops,
+try/catch, artifact files, and runtime tool discovery.
 
 ```js
-await mcp.call("navigate_page", { url: "https://example.com" });
-await tools.evaluate_script({ function: "() => document.title" });
+await tools.new_page({ url: "https://example.com" });
+
+return await api.evalTool("evaluate_script", () => ({
+  title: document.title,
+  links: [...document.links].map((link) => link.href).slice(0, 10)
+}));
 ```
 
-That means control flow moves from the agent/tool-call loop into the language:
+The useful shape is MCP-like interaction where the model sends compact calls,
+while browser logic, extraction, retries, and large intermediate data stay
+inside the evaluator.
 
-```js
-for (let i = 0; i < 20; i += 1) {
-  const title = await tools.evaluate_script({ function: "() => document.title" });
-  if (title.includes("Example")) break;
-  await sleep(250);
-}
-```
-
-Async multi-statement scripts are evaluated inside an async function. Use `return`
-when you want a final value:
-
-```js
-const title = await tools.evaluate_script({ function: "() => document.title" });
-return { title };
-```
-
-## Install / Run
+## Install and Usage
 
 ```bash
 npx mcp2repl --config ./mcp.json
@@ -42,36 +52,165 @@ From a local checkout:
 
 ```bash
 npm install
-npm run smoke
+npm test
 ```
 
-## CLI eval
+Requires Node.js 20 or newer.
+
+Run one JavaScript program against an MCP server:
 
 ```bash
-npx mcp2repl --config ./examples/chrome-devtools.json --server chrome-devtools \
-  --eval 'await mcp.call("new_page", { url: "https://example.com" }); await tools.evaluate_script({ function: "() => document.title" })'
+npx mcp2repl \
+  --config ./examples/chrome-devtools.json \
+  --server chrome-devtools \
+  --eval 'await tools.new_page({ url: "https://example.com" }); return await api.evalTool("evaluate_script", () => document.title)'
 ```
 
-When the config contains multiple `mcpServers`, MCP-2-REPL connects to all
-enabled servers by default and exposes namespaced functions:
-
-```js
-await mcp.chrome_devtools.new_page({ url: "https://example.com" });
-await api.callTool("chrome-devtools", "evaluate_script", { function: "() => document.title" });
-```
-
-Use `--server <name>` to connect only one configured server.
-
-Run the Chrome demo:
+Run a file:
 
 ```bash
-npm run demo:chrome
+npx mcp2repl \
+  --config ./examples/chrome-devtools.json \
+  --server chrome-devtools \
+  --file ./examples/chrome-research-task.repl.js
 ```
 
-The Chrome demo requires Chrome to be launchable from the environment where the MCP
-server runs. In WSL or remote Linux environments, either install Chrome, pass
-`--executablePath` in `examples/chrome-devtools.json`, or connect to an existing
-debuggable browser with `--browserUrl http://127.0.0.1:9222`.
+For agent sessions, put stable options in environment variables so individual
+calls stay short, then send one multi-line evaluator program:
+
+```bash
+export MCP2REPL_CONFIG=./examples/chrome-devtools-visible.json
+export MCP2REPL_SERVER=chrome-devtools
+export MCP2REPL_SESSION=apple
+export MCP2REPL_JSON=1
+export MCP2REPL_QUIET=1
+export MCP2REPL_TIMEOUT=240
+export MCP2REPL_MAX_OUTPUT_CHARS=6000
+
+node ./src/cli.js -e '
+await api.load(".tmp/task-harness.js");
+const probe = await appleTask.probe({});
+return await appleTask.final({ probe });
+'
+```
+
+The first session client call auto-starts a daemon when `--config` or
+`MCP2REPL_CONFIG` is present. Session clients wait up to 30 seconds for the
+socket by default.
+
+`-e` accepts normal multi-line shell strings, can be repeated to append lines,
+and `-e -` reads the program from stdin:
+
+```bash
+printf '%s\n' \
+  'await api.load(".tmp/task-harness.js");' \
+  'const probe = await appleTask.probe({});' \
+  'return await appleTask.final({ probe });' \
+  | node ./src/cli.js -e -
+```
+
+This keeps the interface as one evaluator entrypoint while still supporting
+large multi-line JavaScript. Use `--load` and `--call` when you deliberately
+want separate checkpoints; prefer one multi-line `-e` when the steps are known
+up front.
+
+Print generated function docs for matching tools without starting an
+interactive session:
+
+```bash
+npx mcp2repl \
+  --config ./examples/chrome-devtools.json \
+  --server chrome-devtools \
+  --library "navigate evaluate wait page" \
+  --limit 6 \
+  --json
+```
+
+`--library` is MCP-agnostic. It connects to the configured server, reads tool
+JSON Schemas, and emits TypeScript-like async function signatures plus stable
+example calls. Agent prompts can include only selected docs instead of every MCP
+schema.
+
+## Runtime API
+
+Scripts are evaluated inside an async function. Use `return` for the final
+value. Main globals:
+
+- `tools.safeName(args)` calls upstream tools through identifier-safe aliases.
+- `mcp.call(name, args)` calls an upstream MCP tool by exact name.
+- `mcp.tools[name](args)` calls an upstream MCP tool by exact name.
+- `mcp.<server>.<tool>(args)` calls namespaced tools when a multi-server config
+  is used.
+- `sleep(ms)` returns a promise.
+- `api.searchTools(query, { limit })` returns short ranked tool summaries.
+- `api.library(query, { limit })` returns TypeScript-like function docs
+  generated from any MCP JSON Schema.
+- `api.guide(query, { limit })` returns compact runtime guidance.
+- `api.describeTool(name)` or `api.describeTool(server, tool)` returns one full
+  tool definition, schema, and generated call hints.
+- `api.listTools({ schemas: false })` returns a compact tool index.
+- `api.unwrap(value)` unwraps common MCP content envelopes.
+- `api.evalTool(nameOrQuery, fn, args)` adapts generic eval/code/function-style
+  MCP tools. For Chrome DevTools MCP it embeds `args` into the function source
+  and sends only the schema-valid `function` parameter to `evaluate_script`.
+- `api.load(path)` loads a JavaScript file into the same evaluator context.
+- `api.saveArtifact(name, value, { format })` writes large intermediate data to
+  `.mcp2repl/artifacts/` by default.
+- `api.readArtifact(name)` reads a previously saved artifact.
+
+Use `--artifact-dir <path>` or `MCP2REPL_ARTIFACT_DIR` to choose another
+artifact directory.
+
+## Agent Skill
+
+This repository includes a static discovery skill at `skills/mcp2repl/SKILL.md`.
+Install it into an agent's skills directory so the agent knows when to choose
+mcp2repl over raw MCP tool calls:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R ./skills/mcp2repl ~/.codex/skills/mcp2repl
+```
+
+The skill stays static. Dynamic MCP context stays in the REPL through
+`api.searchTools()`, `api.describeTool()`, `api.library()`, and the generated
+function surface.
+
+## Experiment
+
+The comparison task asks Codex to help an ordinary person choose a MacBook for
+remote work, many browser tabs, video calls, light photo editing, occasional
+travel, and several years of use. It must use public Apple pages only. No login,
+cart, checkout, personal information, direct HTTP clients, or browserless
+scraping are allowed.
+
+The prompt covers five public Apple URLs: MacBook Air, MacBook Pro, Mac
+compare, Air buy page, and Pro buy page. It requires three options: 13-inch
+MacBook Air, 15-inch MacBook Air, and 14-inch MacBook Pro, each with at least
+16GB memory and 512GB storage. The validator checks product separation, price,
+chip, memory, storage, evidence, and different 13-inch/15-inch Air prices.
+
+Reproduce:
+
+```bash
+CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
+  CODEX_VARIANTS=pure-mcp npm run experiment:real-world
+
+CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
+  CODEX_VARIANTS=interactive-repl npm run experiment:real-world
+
+CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
+  CODEX_VARIANTS=scripted-repl npm run experiment:real-world
+```
+
+Artifacts are written under `.tmp/real-world-codex-comparison/<timestamp>/`.
+Each run writes the rendered prompt, isolated Codex home, JSONL transcript,
+final result, and `summary.md`. The task prompt is
+`examples/real-world-codex-comparison/prompt.txt`; the prewritten REPL arm is
+`examples/real-world-codex-comparison/scripted-repl-task.js`. Full experiment
+details are in `examples/real-world-codex-comparison/README.md`.
+
+## Other Examples
 
 Run without Chrome using the built-in mock MCP server:
 
@@ -79,165 +218,17 @@ Run without Chrome using the built-in mock MCP server:
 npm run smoke
 ```
 
-## Experiment: Native Chrome MCP vs REPL
+Run the Chrome demo:
 
-The core claim of MCP-2-REPL is not that it gives access to more browser
-capabilities than `chrome-devtools-mcp`. The upstream MCP server is still doing
-the real browser work. The claim is that the agent-facing interface changes from
-a remote-control transcript into a programmable runtime.
-
-To make that concrete, this repository includes a small comparison experiment.
-Both variants perform the same browser research task with Chrome DevTools MCP:
-
-1. Open `https://example.com`.
-2. Wait until the expected DOM state is reached.
-3. Extract title, heading, links, and navigation timing.
-4. Inspect console messages and network requests.
-5. Return one structured report.
-
-The native MCP version is modeled as the top-level calls an agent has to drive
-when it talks to `chrome-devtools-mcp` directly:
-
-```text
-examples/chrome-research-task.native.json
+```bash
+npm run demo:chrome
 ```
 
-The REPL version is the same task expressed as one JavaScript program submitted
-through `eval`:
-
-```text
-examples/chrome-research-task.repl.js
-```
-
-Run the comparison:
+Run the static Chrome comparison:
 
 ```bash
 npm run experiment:chrome
 ```
-
-Current result:
-
-| Metric | Native chrome-devtools-mcp | MCP-2-REPL |
-| --- | ---: | ---: |
-| Top-level agent tool calls | 8 | 1 |
-| Agent decision points | 8 | 1 |
-| Agent-facing payload bytes | 1,604 | 1,413 |
-| Where polling lives | agent loop | JavaScript loop |
-| Where errors are handled | agent prompt state | throw/catch in code |
-| Reusable artifact | transcript | script |
-
-The byte count is intentionally not the main result. For small tasks, the REPL
-program can even be similar in size to the native transcript because it carries
-the full reusable logic. The important difference is where control flow lives.
-
-With native `chrome-devtools-mcp`, the agent has to decide after every tool
-result what to do next: poll again, branch, retry, extract, inspect logs, inspect
-network, and merge the final answer. The model's context becomes the control
-plane.
-
-With MCP-2-REPL, the model sends a program. Loops, waits, retries, assertions,
-intermediate variables, helper functions, and final report shaping live in
-JavaScript. The agent still uses Chrome DevTools MCP, but it uses it as a
-library inside a runtime instead of as the outer interaction protocol.
-
-That distinction gets stronger as tasks grow:
-
-- A wait loop stays one `for` loop instead of many repeated tool calls.
-- A retry policy becomes `try/catch` instead of prompt-level bookkeeping.
-- A data extraction pipeline becomes ordinary JavaScript objects and arrays.
-- A successful exploration can be committed as a script and rerun.
-- Helper functions can persist for the evaluator lifetime.
-
-In other words, native MCP exposes browser operations. MCP-2-REPL exposes a
-browser-programming environment.
-
-### Codex Token Comparison
-
-This repository also includes a live Codex non-interactive experiment that runs
-the same prompt twice:
-
-1. Codex talks directly to `chrome-devtools-mcp`.
-2. Codex talks to `mcp2repl-server`, which wraps the same `chrome-devtools-mcp`
-   server as a single `eval` tool.
-
-The task opens a self-contained async browser probe page, waits until it becomes
-ready, extracts DOM state, console diagnostics, and network diagnostics, then
-returns compact JSON. The native run has to keep browser polling and result
-assembly at the agent/tool-call layer. The REPL run can put the polling loop and
-data shaping inside JavaScript.
-
-Run it with:
-
-```bash
-npm run experiment:codex-tokens
-```
-
-Optional model override:
-
-```bash
-CODEX_MODEL=gpt-5.4-mini npm run experiment:codex-tokens
-```
-
-The script writes artifacts under `.tmp/codex-token-comparison/<timestamp>/`:
-
-- `prompt.txt` — the exact prompt used for both runs.
-- `native-chrome-mcp.jsonl` — Codex JSONL event stream for direct Chrome MCP.
-- `mcp2repl-wrapped-chrome-mcp.jsonl` — Codex JSONL event stream for wrapped Chrome MCP.
-- `*.result.txt` — final answer from each run.
-- `summary.md` — token totals and final-answer comparison.
-
-### Running the Live REPL Variant
-
-If Chrome is available in the environment, the REPL variant can be executed
-against the real `chrome-devtools-mcp` server:
-
-```bash
-node ./src/cli.js \
-  --config ./examples/chrome-devtools.json \
-  --server chrome-devtools \
-  --file ./examples/chrome-research-task.repl.js
-```
-
-The live run still calls `new_page`, `evaluate_script`,
-`list_console_messages`, and `list_network_requests` upstream. The difference is
-that those calls are no longer separate agent turns.
-
-## Single-tool MCP server
-
-Expose any MCP server back to an agent framework as a single `eval` tool:
-
-```bash
-npx -p mcp2repl mcp2repl-server --config ./examples/chrome-devtools.json --server chrome-devtools
-```
-
-The downstream agent sees one tool:
-
-```text
-eval({ code: "..." })
-```
-
-The upstream server can still have 30 tools; the agent writes JavaScript once and uses loops,
-conditions, helper functions, retries, and batching in-process.
-
-## Injected globals
-
-- `mcp.call(name, args)` calls any upstream MCP tool by exact name.
-- `mcp.tools[name](args)` calls any upstream MCP tool by exact name.
-- `mcp.<server>.<tool>(args)` calls tools through server namespaces when a
-  Claude Desktop-style `mcpServers` config is used.
-- `tools.safeName(args)` calls tools through identifier-safe aliases, for example `evaluate_script`.
-- `api.callTool(server, tool, args)` calls a namespaced MCP tool by exact server
-  and upstream tool names.
-- `mcp.listTools()` returns upstream tool metadata.
-- `api.describeTool(server, tool)` returns one upstream tool's metadata.
-- `sleep(ms)` returns a promise that resolves after `ms`.
-- `inspect(value)` formats complex values.
-
-## Security
-
-MCP-2-REPL evaluates JavaScript with the permissions of the current Node.js
-process and exposes every configured upstream MCP tool to that code. Only run
-configs and programs you trust.
 
 ## Publishing
 
@@ -253,13 +244,8 @@ Name: NPM_TOKEN
 Value: npm automation token with publish access for mcp2repl
 ```
 
-## Why This Beats Raw MCP
+## Security
 
-MCP is a transport and capability registry. It is not a control-flow language.
-
-REPL makes the language the tool layer:
-
-- One tool call can perform conditional waits, loops, retries, and batching.
-- Exploratory snippets can become reusable automation scripts.
-- Helpers and state can persist for the lifetime of the evaluator process.
-- MCP tools remain useful, but they become library calls instead of the agent's primary interface.
+MCP-2-REPL evaluates JavaScript with the permissions of the current Node.js
+process and exposes every configured upstream MCP tool to that code. Only run
+configs and programs you trust.
