@@ -17,6 +17,12 @@ task correctness.
 
 Model: `gpt-5.5`
 
+[![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
+
+The committed video asset shows the same task three ways: native Codex TUI on
+the left and visible Chrome on the right for each variant. The final metrics bar
+uses Pure Chrome MCP as the baseline.
+
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | External validation | pass | pass | pass |
@@ -199,7 +205,13 @@ Final comparison video:
 
 | Artifact | What it shows |
 | --- | --- |
+| `docs/assets/real-world-time-token-comparison.mp4` | Committed README video asset. Use this when viewing the project on GitHub or sharing the result. |
 | `.tmp/recordings/20260514T143809Z-three-way-comparison/final-time-token-comparison.mp4` | Three synchronized rows with a persistent top metrics bar. The bar aligns wall-clock time with total token usage: Pure Chrome MCP is the baseline, Interactive REPL is 21.6% faster and uses 83.9% fewer tokens, and Prewritten REPL is 58.4% faster and uses 90.3% fewer tokens. |
+
+The interactive recording reuses the visible Apple tab instead of creating a
+hidden/new page. Its `selected-targets.log` shows the same target navigating
+through Apple, MacBook Air, MacBook Pro, Mac compare, and both public buy
+pages, so the Chrome pane is the actual browser work rather than a stale page.
 
 Each composite directory also includes `terminal/codex.cast`,
 `terminal/codex.mp4`, `browser/recording.mp4`, `sample.jpg`, and

@@ -4,6 +4,12 @@ MCP-2-REPL turns any stdio MCP server into a persistent JavaScript evaluator.
 On a real Apple shopping research task with visible Chrome, the same Codex
 prompt was run three ways:
 
+[![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
+
+Click the preview to open the recorded comparison video. It shows native Codex
+TUI output beside visible Chrome for Pure Chrome MCP, Interactive REPL, and
+Prewritten REPL, with elapsed time and token usage overlaid.
+
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | External validation | pass | pass | pass |
