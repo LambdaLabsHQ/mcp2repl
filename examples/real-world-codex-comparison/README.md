@@ -13,7 +13,7 @@ Pure Chrome MCP is the baseline. The goal is to measure whether browser
 interaction can move from the model transcript into an evaluator without losing
 task correctness.
 
-## Latest Results
+## Recorded Results
 
 Model: `gpt-5.5`
 
@@ -45,6 +45,46 @@ Run records:
 | pure-mcp | `2026-05-14T11-05-39-671Z` | 1,088,773 | 1,027,840 | 60,933 | 5,795 | 1,032 | 1,094,568 | 66,728 | `{"agent_message":4,"mcp_tool_call":23}` |
 | interactive-repl | `2026-05-14T14-33-00-641Z` | 170,573 | 156,928 | 13,645 | 5,162 | 696 | 175,735 | 18,807 | `{"agent_message":5,"command_execution":3,"file_change":1}` |
 | scripted-repl | `2026-05-14T11-12-32-851Z` | 101,308 | 92,672 | 8,636 | 4,662 | 51 | 105,970 | 13,298 | `{"command_execution":1,"agent_message":1}` |
+
+## Procedural-Abstraction Rerun
+
+After the initial recording, the interactive REPL prompt was changed from
+"write one task and finish" to a SICP-style evaluator pattern:
+
+- MCP tools are primitive procedures.
+- The agent writes a task module of compound procedures.
+- The persistent mcp2repl session is the evaluator environment.
+- The agent evaluates medium-sized expressions: setup, observe one slice,
+  compose, validate, and repair only missing fields.
+- Intermediate evaluator results must be tiny; raw observations are stored with
+  `api.saveArtifact()`.
+
+The first successful JSON-mode rerun passed external validation:
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T15-56-41-543Z` | 212,095 | 198,272 | 13,823 | 7,265 | 1,164 | 219,360 | 21,088 | `{"agent_message":7,"command_execution":5,"file_change":1}` |
+
+Relative to Pure Chrome MCP, this run used `0.20x` total tokens and `0.32x`
+uncached input + output tokens while keeping the browser MCP schema out of
+Codex context. It is slightly more expensive than the earlier one-command
+interactive run, but it has a clearer interactive shape: one task module, small
+checkpoints, and no repeated large browser observations in the model transcript.
+
+After removing command-specific post-check guidance, the upper-level evaluator
+discipline was rerun:
+
+| Variant | Timestamp | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Item types |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| interactive-repl | `2026-05-14T16-09-33-466Z` | 579,964 | 536,320 | 43,644 | 10,734 | 2,554 | 590,698 | 54,378 | `{"agent_message":10,"command_execution":8,"file_change":3}` |
+
+This run also passed external validation with `0` failed items. It used `0.54x`
+Pure Chrome MCP total tokens and `0.81x` uncached tokens. The important
+behavioral change is that when the final value was too large, the agent repaired
+the compound procedure and reran evaluator expressions instead of reading saved
+artifacts through shell-side tools. The remaining cost came from two focused
+procedure repairs, which points to a better default finalization pattern rather
+than a need for post-hoc file-size checks.
 
 ## Task
 

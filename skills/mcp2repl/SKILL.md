@@ -169,10 +169,20 @@ Do not put long tool-use JavaScript in shell `--eval` strings. Write compound
 procedures to a temporary `.js` task module, then use short evaluator
 expressions such as `await api.load(path)`, `await task.observe(slice)`,
 `await task.compose()`, and `await task.validate(value)`.
+Do not spend extra turns inspecting or polishing the task module itself. Write
+it once, then run evaluator expressions; patch only for a concrete syntax,
+runtime, or validation failure.
 For token-sensitive work, the agent should see compact observations,
 validation results, or the final value, not every intermediate browser action.
 Avoid monolithic procedures that try to complete a whole ambiguous task in one
 eval; they are harder to inspect and expensive to repair.
+Intermediate evaluator results should be small and decision-oriented. Save raw
+observations and large evidence with `api.saveArtifact()`. Return the full
+answer only once validation passes.
+Artifacts are evaluator-environment values, not a shell-side compression
+channel. If a result is too large or malformed, repair the compound procedure
+that produced it and rerun that procedure. Use evaluator errors and stacks as
+diagnostics for focused repairs, then continue in the evaluator.
 For browser page evaluation or any eval-like MCP tool, prefer `api.evalTool()`
 over hand-written transport wrappers. Do not add unsupported `args` keys to MCP
 tool calls; `api.evalTool()` embeds arguments according to the tool schema.
