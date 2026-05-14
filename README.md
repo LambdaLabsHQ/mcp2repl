@@ -2,7 +2,27 @@
 
 MCP-2-REPL turns any stdio MCP server into a persistent JavaScript evaluator.
 On a real Apple shopping research task with visible Chrome, the same Codex
-prompt was run three ways:
+prompt was run three ways. Pure Chrome MCP is the baseline; the latest
+interactive REPL result uses strict typed-fact checkpoints and the tightened
+external validator.
+
+| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| --- | ---: | ---: | ---: |
+| Data source | recorded JSONL | strict typed-facts rerun | recorded JSONL |
+| External validation | pass | pass | pass |
+| Total tokens | 1,094,568 | 504,349 | 105,970 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.46x | 0.10x |
+| Total token reduction vs Pure Chrome MCP | baseline | 53.9% less | 90.3% less |
+| Uncached input + output | 66,728 | 30,109 | 13,298 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.45x | 0.20x |
+| Uncached reduction vs Pure Chrome MCP | baseline | 54.9% less | 80.1% less |
+| Top-level operations | 23 MCP tool calls | 6 shell commands + 4 file edits | 1 shell command |
+| Codex MCP injected | yes | no | no |
+| mcp2repl skill installed | no | yes | yes |
+
+The recorded process video below uses the earlier interactive REPL run because
+it captures native Codex TUI and visible Chrome side by side. The token table
+above is the current result table.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
@@ -10,33 +30,16 @@ Click the preview to open the recorded comparison video. It shows native Codex
 TUI output beside visible Chrome for Pure Chrome MCP, Interactive REPL, and
 Prewritten REPL, with elapsed time and token usage overlaid.
 
-| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| Recorded Video Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| External validation | pass | pass | pass |
 | Wall-clock video time | 273.1s | 214.2s | 113.7s |
 | Time vs Pure Chrome MCP | 1.00x | 0.78x | 0.42x |
 | Total tokens | 1,094,568 | 175,735 | 105,970 |
 | Total tokens vs Pure Chrome MCP | 1.00x | 0.16x | 0.10x |
-| Total token reduction vs Pure Chrome MCP | baseline | 83.9% less | 90.3% less |
-| Uncached input + output | 66,728 | 18,807 | 13,298 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.28x | 0.20x |
-| Uncached reduction vs Pure Chrome MCP | baseline | 71.8% less | 80.1% less |
-| Top-level operations | 23 MCP tool calls | 3 shell commands + 1 file edit | 1 shell command |
-| Codex MCP injected | yes | no | no |
-| mcp2repl skill installed | no | yes | yes |
 
-Pure Chrome MCP is the baseline. The interactive REPL used 16.1% of the
-baseline total tokens and finished 21.6% faster, while still passing the same
-external validator. The prewritten REPL used 9.7% of the baseline total tokens
-and finished 58.4% faster; that is the amortized path once exploration becomes
-reusable code.
-
-After tightening the interactive REPL discipline to return typed-fact
-checkpoints, a stricter JSON-mode rerun passed at `504,349` total tokens and
-`30,109` uncached input+output tokens: `0.46x` and `0.45x` of the Pure Chrome
-MCP baseline. That run is documented in
-`examples/real-world-codex-comparison/README.md`; the video above remains the
-recorded three-way process comparison.
+The current interactive REPL run uses 46.1% of the baseline total tokens while
+passing stricter validation. The prewritten REPL uses 9.7% of the baseline total
+tokens; that is the amortized path once exploration becomes reusable code.
 
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build

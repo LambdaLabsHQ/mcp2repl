@@ -13,17 +13,51 @@ Pure Chrome MCP is the baseline. The goal is to measure whether browser
 interaction can move from the model transcript into an evaluator without losing
 task correctness.
 
-## Recorded Results
+## Latest Token Results
 
 Model: `gpt-5.5`
+
+This is the current token comparison. The Pure Chrome MCP and Prewritten REPL
+rows are from the recorded JSONL runs; the Interactive REPL row is the latest
+strict typed-facts rerun with the tightened external validator.
+
+| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| --- | ---: | ---: | ---: |
+| Data source | recorded JSONL | strict typed-facts rerun | recorded JSONL |
+| Timestamp | `2026-05-14T11-05-39-671Z` | `2026-05-14T17-45-08-743Z` | `2026-05-14T11-12-32-851Z` |
+| External validation | pass | pass | pass |
+| Input tokens | 1,088,773 | 494,353 | 101,308 |
+| Cached input tokens | 1,027,840 | 474,240 | 92,672 |
+| Uncached input tokens | 60,933 | 20,113 | 8,636 |
+| Output tokens | 5,795 | 9,996 | 4,662 |
+| Reasoning output tokens | 1,032 | 1,979 | 51 |
+| Total tokens | 1,094,568 | 504,349 | 105,970 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.46x | 0.10x |
+| Total token reduction vs Pure Chrome MCP | baseline | 53.9% less | 90.3% less |
+| Uncached input + output | 66,728 | 30,109 | 13,298 |
+| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.45x | 0.20x |
+| Uncached reduction vs Pure Chrome MCP | baseline | 54.9% less | 80.1% less |
+| Top-level operations | 23 MCP tool calls | 6 shell commands + 4 file edits | 1 shell command |
+| Item types | `{"agent_message":4,"mcp_tool_call":23}` | `{"agent_message":12,"command_execution":6,"file_change":4}` | `{"command_execution":1,"agent_message":1}` |
+| Codex MCP injected | yes | no | no |
+| mcp2repl skill installed | no | yes | yes |
+
+The strict interactive run is more expensive than the earlier recording because
+the checkpoint returns compact typed facts, not just pass/fail. That exposed and
+repaired real semantic issues before final projection: missing memory/storage,
+a reused 15-inch Air price, and product-field contamination.
+
+## Recorded Process Video
 
 [![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
 
 The committed video asset shows the same task three ways: native Codex TUI on
 the left and visible Chrome on the right for each variant. The final metrics bar
-uses Pure Chrome MCP as the baseline.
+uses Pure Chrome MCP as the baseline. This video uses the earlier interactive
+REPL recording, so its token numbers are process-recording numbers rather than
+the latest strict typed-facts result above.
 
-| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| Recorded Video Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | External validation | pass | pass | pass |
 | Wall-clock video time | 273.1s | 214.2s | 113.7s |
