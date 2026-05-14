@@ -56,7 +56,17 @@ export class McpRepl {
       evalTool: (nameOrQuery, fn, args = {}) => evalTool(facade, this.toolDocs, nameOrQuery, fn, args),
       compact: (value, options = {}) => compactValue(value, options),
       project: (value, projection = true, options = {}) => projectValue(value, projection, options),
-      print: (value, options = {}) => this.#printValue(value, options),
+      print: (value, options = {}) => {
+        const printed = this.#printValue(value, options);
+        this.context.__mcp2replLastPrintPromise = printed;
+        void printed.then(
+          (envelope) => {
+            this.context.__mcp2replLastPrint = envelope;
+          },
+          () => {}
+        );
+        return printed;
+      },
       unwrap: (value) => unwrapResult(value),
       load: (filePath) => this.#loadFile(filePath),
       runtimeDocs: () => runtimeDocs(),
@@ -85,9 +95,18 @@ export class McpRepl {
   async eval(source, options = {}) {
     const code = String(source ?? "");
     const timeout = options.timeoutMs ?? this.options.timeoutMs ?? 60000;
+    this.context.__mcp2replLastPrint = undefined;
+    this.context.__mcp2replLastPrintPromise = undefined;
     const script = this.#compile(code, timeout);
     const value = script.runInContext(this.context, { timeout });
-    return await withTimeout(Promise.resolve(value), timeout);
+    const result = await withTimeout(Promise.resolve(value), timeout);
+    if (result === undefined && this.context.__mcp2replLastPrintPromise) {
+      return await withTimeout(this.context.__mcp2replLastPrintPromise, timeout);
+    }
+    if (result === undefined && this.context.__mcp2replLastPrint) {
+      return this.context.__mcp2replLastPrint;
+    }
+    return result;
   }
 
   async close() {
@@ -286,6 +305,7 @@ function runtimeDocs() {
     "  api.guide(query, { limit? }) -> compact recipes, call forms, and common pitfalls.",
     "  api.library(query, { limit? }) -> TypeScript-like semantic function docs for selected tools.",
     "  api.evalTool(nameOrQuery, fn, args?) -> call a code/function/script-style MCP tool with schema-safe argument embedding.",
+    "    evalTool stringifies fn for the target tool; pass self-contained functions and do not close over evaluator variables.",
     "  api.listTools({ schemas: false }) -> compact tool index.",
     "  api.project(value, projection, options?) -> evaluator-side projection for compact decision views.",
     "  await api.print(value, { projection?, maxChars?, fit? }) -> model-facing print envelope; auto-fits the representation when possible and returns ResultTooLarge with largeFields when it cannot fit.",
@@ -491,7 +511,7 @@ function guidePatterns(query) {
     "Keep loops, polling, retries, extraction, and aggregation inside JavaScript; return compact JSON.",
     "Call api.describeTool(name) before using an unfamiliar tool with nontrivial arguments.",
     "Use api.library(query) when you want TypeScript-like function signatures generated from MCP schemas.",
-    "Use api.evalTool(nameOrQuery, fn, args) for MCP tools whose schema accepts JavaScript/code/function text; do not invent unsupported args keys.",
+    "Use api.evalTool(nameOrQuery, fn, args) for MCP tools whose schema accepts JavaScript/code/function text; pass a self-contained function because it is stringified for the target tool.",
     "If a result shape is uncertain, run a tiny probe first and encode the observed shape into the script.",
     "Use api.project() or api.print() to return compact decision views.",
     "Use api.saveArtifact(name, value) for large intermediate data instead of returning it to the model."
@@ -1083,7 +1103,9 @@ const INTERNAL_GLOBALS = new Set([
   "tools",
   "inspect",
   "sleep",
-  "__mcp2replCall"
+  "__mcp2replCall",
+  "__mcp2replLastPrint",
+  "__mcp2replLastPrintPromise"
 ]);
 
 export function repairErrorEnvelope(error) {
@@ -1101,6 +1123,8 @@ export function repairErrorEnvelope(error) {
 
 function inferRepairHint(error) {
   const message = `${error?.name ?? ""} ${error?.message ?? error ?? ""}`;
+  if (/dynamic import callback/i.test(message)) return "Load reusable procedures with --load <file> or api.load(path); dynamic import() is not the REPL module-loading path.";
+  if (/Identifier .* has already been declared/i.test(message)) return "The evaluator session preserves lexical declarations. Wrap repair snippets in a block, use unique names, or patch and reload the procedure module.";
   if (/SyntaxError/i.test(message)) return "Patch the loaded compound procedure syntax, then reload the task module in the same evaluator session.";
   if (/single argument object/i.test(message)) return "Call MCP primitive procedures with exactly one object argument, for example tools.some_tool({ key: value }).";
   if (/Unknown MCP tool/i.test(message)) return "Use api.searchTools() or api.listTools({ schemas: false }) to find the available primitive procedure name.";

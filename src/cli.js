@@ -60,6 +60,9 @@ Usage:
   mcp2repl --config ./mcp.json
   mcp2repl --config ./mcp.json --server chrome-devtools
   mcp2repl --config ./mcp.json -e 'await mcp.chrome_devtools.new_page({ url: "https://example.com" })'
+  mcp2repl --session work <<'JS'
+  return await task.observe()
+  JS
 
 Options:
   --mock                 Use the built-in mock MCP client.
@@ -69,7 +72,7 @@ Options:
   --arg <value>          Add one command argument. Can be repeated.
   -e, --eval <code>      Evaluate JavaScript once and exit. Repeat to append lines; use - to read stdin.
   -f, --file <path>      Evaluate a JavaScript file and exit.
-  --load <path>          Load a JavaScript task module in an async IIFE and exit.
+  --load <path>          Load a JavaScript task module in an async IIFE. Can be combined with --call.
   --call <name>          Call a function already loaded in the evaluator context.
   --call-args <json>     JSON object argument for --call. Default: {}.
   --library <query>      Print generated function docs for matching MCP tools.
@@ -84,6 +87,9 @@ Options:
   --max-output-chars <n> If output is larger, return ResultTooLarge with artifact handle and repair hints.
   --timeout <seconds>    Evaluation timeout. Default: 60.
   -h, --help             Show help.
+
+If stdin is piped and no --eval/--file/--load/--call is provided, stdin is
+evaluated once. This is the shortest form for multi-line REPL steps.
 
 Environment defaults:
   MCP2REPL_CONFIG, MCP2REPL_SERVER, MCP2REPL_SESSION, MCP2REPL_ARTIFACT_DIR
@@ -143,6 +149,10 @@ async function sendSessionRequest(args, source) {
     };
     connect();
   });
+}
+
+function canStartSession(args) {
+  return args.mock || args.config || args.command;
 }
 
 async function sessionSocketExists(name) {
@@ -239,6 +249,9 @@ async function runSessionDaemon(args) {
 }
 
 async function readSource(args) {
+  if (args.load && args.call) {
+    return `${buildLoadStatement(args.load)}\n${buildCallSource(args)}`;
+  }
   if (args.call) return buildCallSource(args);
   if (args.load) return buildLoadSource(args.load);
   if (args.eval != null) return args.eval === "-" ? readStdin() : args.eval;
@@ -249,6 +262,10 @@ async function readSource(args) {
 
 async function buildLoadSource(filePath) {
   return `return await api.load(${JSON.stringify(path.resolve(filePath))})`;
+}
+
+function buildLoadStatement(filePath) {
+  return `await api.load(${JSON.stringify(path.resolve(filePath))});`;
 }
 
 function buildCallSource(args) {
@@ -299,7 +316,23 @@ async function main() {
     if (!args.stop && !(await sessionSocketExists(args.session))) {
       await startDetachedSession(args);
     }
-    const response = await sendSessionRequest(args, source);
+    let response;
+    try {
+      response = await sendSessionRequest(args, source);
+    } catch (error) {
+      if (args.stop && error?.code === "ECONNREFUSED") {
+        await fs.rm(sessionSocketPath(args.session), { force: true });
+        process.stdout.write(`${JSON.stringify({ ok: true, stopped: true, staleSocketRemoved: true })}\n`);
+        return;
+      }
+      if (!args.stop && error?.code === "ECONNREFUSED" && canStartSession(args)) {
+        await fs.rm(sessionSocketPath(args.session), { force: true });
+        await startDetachedSession(args);
+        response = await sendSessionRequest(args, source);
+      } else {
+        throw error;
+      }
+    }
     if (!response.ok) {
       const text = args.json
         ? JSON.stringify({ ok: false, error: response.error })

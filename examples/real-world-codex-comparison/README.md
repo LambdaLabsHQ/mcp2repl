@@ -14,71 +14,82 @@ procedure-abstraction discipline: MCP tools are primitive procedures, thin
 helpers are compound procedures, the mcp2repl session is the environment, and
 each step returns a compact typed checkpoint before the next step is chosen.
 
-## Latest Strict Run
+## Latest Strict Data
 
 Model: `gpt-5.5`
 
-Run artifact:
-`.tmp/real-world-codex-comparison/2026-05-14T19-36-39-571Z`
+All rows use the same accounting source: Codex JSONL usage events recorded by
+`run.mjs`. Each row below is the latest strict pass for that variant after the
+procedure-abstraction prompt was tightened to avoid setup-only pauses, repair
+churn, and extra final export commands.
 
-All rows use the same accounting source: Codex JSONL usage events. The browser
-was fixed to public Apple US/English pages, and every variant passed the same
-external validator.
+Run artifacts:
+
+- Pure Chrome MCP: `.tmp/real-world-codex-comparison/2026-05-14T22-06-31-970Z`
+- Interactive REPL: `.tmp/real-world-codex-comparison/2026-05-14T22-13-13-600Z`
+- Prewritten REPL: `.tmp/real-world-codex-comparison/2026-05-14T22-15-09-411Z`
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | Process abstraction | direct tool calls | small evaluator steps | reusable compound procedure |
 | External validation | pass | pass | pass |
-| Failed transcript items | 1 | 1 | 0 |
-| Input tokens | 2,529,663 | 621,816 | 98,397 |
-| Cached input tokens | 2,369,152 | 585,472 | 93,184 |
-| Uncached input tokens | 160,511 | 36,344 | 5,213 |
-| Output tokens | 5,316 | 16,055 | 1,164 |
-| Reasoning output tokens | 1,440 | 2,745 | 33 |
-| Total tokens | 2,534,979 | 637,871 | 99,561 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
-| Token advantage | baseline | 3.97x fewer | 25.46x fewer |
-| Total token reduction | baseline | 74.8% less | 96.1% less |
-| Uncached input + output | 165,827 | 52,399 | 6,377 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.32x | 0.04x |
-| Uncached reduction | baseline | 68.4% less | 96.2% less |
-| Top-level operations | 29 MCP tool calls | 17 evaluator commands | 1 evaluator command |
-| Item types | `{"agent_message":5,"mcp_tool_call":29}` | `{"agent_message":18,"command_execution":17}` | `{"command_execution":1,"agent_message":1}` |
+| Failed transcript items | 0 | 0 | 0 |
+| Input tokens | 2,006,967 | 133,693 | 49,448 |
+| Cached input tokens | 1,882,496 | 117,632 | 44,800 |
+| Uncached input tokens | 124,471 | 16,061 | 4,648 |
+| Output tokens | 5,480 | 3,937 | 1,181 |
+| Reasoning output tokens | 1,232 | 0 | 99 |
+| Total tokens | 2,012,447 | 137,630 | 50,629 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.068x | 0.025x |
+| Token advantage | baseline | 14.62x fewer | 39.75x fewer |
+| Total token reduction | baseline | 93.2% less | 97.5% less |
+| Uncached input + output | 129,951 | 19,998 | 5,829 |
+| Uncached token advantage | baseline | 6.50x fewer | 22.29x fewer |
+| Uncached reduction | baseline | 84.6% less | 95.5% less |
+| Strict JSONL elapsed | 175.5s | 105.1s | 51.8s |
+| Time vs Pure Chrome MCP | 1.00x | 0.60x | 0.30x |
+| Time advantage | baseline | 1.67x faster | 3.39x faster |
+| Top-level operations | 27 MCP tool calls | 4 evaluator commands | 1 evaluator command |
+| Item types | `{"mcp_tool_call":27,"agent_message":1}` | `{"command_execution":4,"agent_message":1}` | `{"agent_message":2,"command_execution":1}` |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
-The failed transcript items were recovered during the run. Pure Chrome MCP had
-one browser/tool failure. Interactive REPL had one local evaluator shape error
-while repairing price facts. Both final answers passed external validation.
+## Step Timing
+
+The strict JSONL recorder timestamps every action event when it is received.
+This makes total time and per-step distribution comparable across variants.
+
+| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+| --- | ---: | ---: | ---: |
+| Action steps | 27 | 4 | 1 |
+| First action | 13.9s | 14.3s | 16.0s |
+| Median action | 0.8s | 1.1s | 16.9s |
+| P90 action | 3.1s | 7.7s | 16.9s |
+| Max action duration | 6.7s | 7.7s | 16.9s |
+| Max gap between actions | 8.5s | 21.6s | 0.0s |
+| Slowest actions | `evaluate_script:6.7s, evaluate_script:3.7s, evaluate_script:3.1s` | `mcp2repl stdin eval:7.7s, mcp2repl stdin eval:5.8s, mcp2repl stdin eval:1.1s` | `mcp2repl stdin eval:16.9s` |
+
+The interactive REPL result is now faster both in total and at the evaluator
+action layer: it has no setup-only command, no failed repair step, and no
+separate final export command. Its remaining non-uniformity is the 21.6s
+model-composition gap between evaluator steps. That gap is not browser work; it
+is Codex writing the next compound procedure.
 
 ## Recorded Process Video
 
 [![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
 
 The committed video shows native Codex TUI on the left and visible Chrome on the
-right for each variant. It uses the same strict JSONL token numbers shown above.
-
-| Recorded video metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
-| --- | ---: | ---: | ---: |
-| Composite MP4 | `.tmp/recordings/20260514T194709Z-pure-mcp-composite/composite.mp4` | `.tmp/recordings/20260514T195009Z-interactive-repl-composite/composite.mp4` | `.tmp/recordings/20260514T195436Z-scripted-repl-composite/composite.mp4` |
-| Wall-clock video time | 164.7s | 242.7s | 26.2s |
-| Time vs Pure Chrome MCP | 1.00x | 1.47x | 0.16x |
-| Total tokens | 2,534,979 | 637,871 | 99,561 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
-| Token advantage | baseline | 3.97x fewer | 25.46x fewer |
-
-The interactive video is slower because the agent performs typed-fact
-exploration and targeted repairs step by step. The token advantage comes from
-where the work happens: raw page text, retries, DOM extraction, and intermediate
-state stay in the evaluator instead of being repeatedly copied through the
-model transcript.
+right for each variant. It is a qualitative process recording, not the token
+accounting source. Native TUI recording uses human-readable output and may take
+longer or behave differently from non-human JSONL runs. Use the strict JSONL
+tables above for benchmark claims.
 
 Final video artifacts:
 
 - `docs/assets/real-world-time-token-comparison.mp4`: committed README video.
 - `docs/assets/real-world-time-token-comparison.jpg`: committed preview frame.
-- `.tmp/recordings/20260514T195559Z-three-way-comparison/final-time-token-comparison.mp4`: full local stitched comparison.
-- `.tmp/recordings/20260514T195559Z-three-way-comparison/final-time-token-comparison.web.mp4`: compressed local copy used for docs.
+- `.tmp/recordings/20260514T220100Z-three-way-comparison/final-time-token-comparison.web.mp4`: local compressed stitched source used for docs.
 
 ## Task
 
@@ -124,15 +135,17 @@ direct process: observe, decide, call a tool, observe again. It is simple, but
 large Chrome observations and tool schemas remain close to the model transcript.
 
 Interactive REPL moves browser operation into an evaluator while preserving
-exploration. The agent should choose a step of the right size:
+exploration. The agent chooses a step of the right size:
 
 - Discover only the primitive procedures it needs.
-- Define thin helpers such as `go(url)`, `evalPage(fn, args)`, and
-  `checkpoint()`.
+- Bootstrap the evaluator and perform the first real browser action in the same
+  command.
+- Define thin helpers such as `go(url)` and `evalPage(fn, args)`.
 - Navigate one public Apple page or product slice at a time.
 - Return only typed facts, missing fields, and source URLs.
-- Repair only the smallest helper or extraction step after a concrete compact
-  checkpoint shows a problem.
+- Keep raw text, retries, aggregation, and page-specific loops in the evaluator.
+- Return the final JSON from the final synthesis step instead of doing a second
+  export command.
 
 Prewritten REPL measures the amortized path after exploration has become a
 reusable compound procedure. It is expected to be cheapest; it is not a
@@ -163,8 +176,9 @@ Interactive REPL:
 - Codex uses the installed static skill only for discovery and workflow
   guidance.
 - Dynamic tool context is queried inside the REPL with `api.searchTools()`,
-  `api.guide()`, `api.library()`, and `api.describeTool()`.
-- Work must proceed as small evaluator expressions, not one broad script.
+  `api.guide()`, `api.library()`, and `api.describeTool()` when needed.
+- Work must proceed as small evaluator expressions, not one broad script and
+  not one shell command per primitive browser call.
 
 Prewritten REPL:
 
@@ -242,7 +256,7 @@ CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=2 CODEX_RETRY_DELAY_MS=30000 \
 
 Artifacts are written under `.tmp/real-world-codex-comparison/<timestamp>/`.
 Each run writes the rendered prompt, isolated Codex home, JSONL transcript,
-final result, and `summary.md`.
+raw JSONL transcript, final result, and `summary.md`.
 
 ## Recording
 
@@ -261,15 +275,7 @@ Each composite directory includes:
 - `terminal/codex.mp4`
 - `browser/recording.mp4`
 - `composite.mp4`
-- `sample.jpg`
 - `recording.json`
-
-Older recording helpers remain available for debugging:
-
-```bash
-npm run record:real-world -- pure-mcp
-npm run record:real-world:native-tui -- pure-mcp
-```
 
 The dashboard recorder reformats Codex output in HTML. The native-only recorder
 captures the real TUI but does not include Chrome. Use the composite recorder
@@ -285,16 +291,19 @@ for comparison videos.
 - `record-composite.mjs`: records native Codex TUI and visible Chrome side by
   side.
 - `.tmp/real-world-codex-comparison/<timestamp>/summary.md`: per-run summary.
-- `.tmp/real-world-codex-comparison/<timestamp>/*.jsonl`: Codex JSONL
-  transcript for the run.
+- `.tmp/real-world-codex-comparison/<timestamp>/*.jsonl`: timestamped Codex
+  JSONL transcript for the run.
+- `.tmp/real-world-codex-comparison/<timestamp>/*.raw.jsonl`: raw Codex JSONL
+  transcript before timestamp annotation.
 - `.tmp/real-world-codex-comparison/<timestamp>/*.result.txt`: final answer.
 - `.tmp/real-world-codex-comparison/<timestamp>/*.prompt.txt`: rendered prompt.
 
 ## Interpretation
 
 The prewritten REPL result is the lower bound after the browser procedure has
-been factored into reusable code. The more interesting result is the
-interactive REPL run: Codex still discovers, writes, observes, and repairs
+been factored into reusable code. The interactive REPL result is the important
+one for agent work: Codex still discovers, writes, observes, and synthesizes
 during the run, but the transcript sees compact checkpoints instead of full
-browser state. That is why it can be slower in wall-clock time while still using
-far fewer tokens than direct Chrome MCP.
+browser state. In the latest strict pass it is both faster and much cheaper
+than direct Chrome MCP. The remaining optimization target is not the evaluator;
+it is the model time between semantic evaluator steps.

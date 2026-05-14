@@ -5,49 +5,54 @@ The mental model is procedure abstraction: MCP tools become primitive
 procedures, agents define small compound procedures, and each REPL step
 evaluates one expression against a persistent environment.
 
-On a no-login Apple US/English shopping research task with visible Chrome, the
-same Codex task was run three ways. Pure Chrome MCP is the direct tool-call
-baseline.
+On a no-login Apple US/English shopping research task, the same Codex task was
+run three ways. Pure Chrome MCP is the direct tool-call baseline.
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | Token source | Codex JSONL transcript | Codex JSONL transcript | Codex JSONL transcript |
-| Process abstraction | direct tool calls | small evaluator steps | reusable compound procedure |
+| Process abstraction | direct tool calls | interactive compound procedures | reusable compound procedure |
 | External validation | pass | pass | pass |
-| Total tokens | 2,534,979 | 637,871 | 99,561 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
-| Token advantage | baseline | 3.97x fewer | 25.46x fewer |
-| Total token reduction | baseline | 74.8% less | 96.1% less |
-| Uncached input + output | 165,827 | 52,399 | 6,377 |
-| Uncached tokens vs Pure Chrome MCP | 1.00x | 0.32x | 0.04x |
-| Uncached reduction | baseline | 68.4% less | 96.2% less |
-| Top-level operations | 29 MCP tool calls | 17 evaluator commands | 1 evaluator command |
-| Recorded video time | 164.7s | 242.7s | 26.2s |
+| Failed transcript items | 0 | 0 | 0 |
+| Total tokens | 2,012,447 | 137,630 | 50,629 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.068x | 0.025x |
+| Token advantage | baseline | 14.62x fewer | 39.75x fewer |
+| Total token reduction | baseline | 93.2% less | 97.5% less |
+| Uncached input + output | 129,951 | 19,998 | 5,829 |
+| Uncached token advantage | baseline | 6.50x fewer | 22.29x fewer |
+| Strict JSONL elapsed | 175.5s | 105.1s | 51.8s |
+| Time vs Pure Chrome MCP | 1.00x | 0.60x | 0.30x |
+| Time advantage | baseline | 1.67x faster | 3.39x faster |
+| Top-level operations | 27 MCP tool calls | 4 evaluator commands | 1 evaluator command |
+| First action | 13.9s | 14.3s | 16.0s |
+| Max action duration | 6.7s | 7.7s | 16.9s |
+| Max gap between actions | 8.5s | 21.6s | 0.0s |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
-All token counts above are parsed from Codex JSONL usage events from the same
-strict run. The interactive recording is slower because it deliberately repairs
-typed facts step by step; its token cost is still 74.8% lower than direct Chrome
-MCP because raw browser observations stay inside the evaluator.
+All token counts above are parsed from Codex JSONL usage events with the same
+strict accounting path. The interactive REPL run is still exploratory: Codex
+defines and calls small procedures, observes compact checkpoints, and then
+synthesizes the final JSON. The latest run has no repair step and no extra
+export step. It is 1.67x faster overall than Pure Chrome MCP and uses 93.2%
+fewer total tokens because raw browser observations stay inside the evaluator.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
 Click the preview to open the recorded comparison video. It shows native Codex
 TUI output beside visible Chrome for Pure Chrome MCP, Interactive REPL, and
-Prewritten REPL, with elapsed time and token usage overlaid.
+Prewritten REPL. The video is for process inspection; the benchmark above comes
+from non-human Codex JSONL transcripts.
 
-| Recorded video metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
-| --- | ---: | ---: | ---: |
-| Wall-clock video time | 164.7s | 242.7s | 26.2s |
-| Time vs Pure Chrome MCP | 1.00x | 1.47x | 0.16x |
-| Total tokens | 2,534,979 | 637,871 | 99,561 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.25x | 0.04x |
-
-The interactive path uses 25.2% of the baseline total tokens while preserving
-the step-by-step exploration workflow. The prewritten path uses 3.9% of the
-baseline total tokens; that is the amortized path once exploration becomes
-reusable code.
+The important difference is the unit of interaction. Pure MCP exposes each
+browser primitive as a top-level agent action. Interactive REPL keeps the
+browser primitives in a persistent evaluator and asks Codex to evaluate one
+right-sized procedure at a time. "Uniformly fast" means the REPL should avoid a
+setup-only pause, avoid a giant final step, and avoid repair churn. In the
+latest strict run, its four evaluator actions all complete within 7.7s; the
+remaining long interval is Codex composing the next procedure, not the evaluator
+waiting on browser primitives. The prewritten path is the amortized endpoint
+after the exploratory procedure has been factored into reusable code.
 
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build

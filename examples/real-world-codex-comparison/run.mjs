@@ -106,6 +106,9 @@ for (const variant of variants) {
   if (process.env.REAL_WORLD_CHROME_BROWSER_URL) {
     await resetChromeForExperiment(process.env.REAL_WORLD_CHROME_BROWSER_URL);
   }
+  if (variant.mode === "repl") {
+    await fs.rm(path.join(rootDir, ".tmp", "real-world-codex-comparison", "apple-procedures.js"), { force: true });
+  }
   variant.codexHome = await prepareCodexHome(variant);
   const prompt = renderPrompt(variant.mode);
   await fs.writeFile(path.join(outDir, `${variant.name}.prompt.txt`), prompt);
@@ -122,7 +125,7 @@ for (const variant of variants) {
   const resultPath = path.join(outDir, `${variant.name}.result.txt`);
   const summary = await runCodexVariant(variant, prompt, jsonlPath, resultPath);
   summaries.push(summary);
-  console.error(`${variant.name}: ${summary.usage.total_tokens} total tokens`);
+  console.error(`${variant.name}: ${summary.usage.total_tokens} total tokens, ${formatSeconds(summary.durationMs)} elapsed`);
 }
 
 const markdown = renderMarkdown(summaries);
@@ -139,32 +142,26 @@ function renderPrompt(mode) {
       "Use the existing selected browser page and navigate it; do not create isolated contexts.",
       "Avoid take_snapshot on full Apple pages unless absolutely necessary.",
       "Use evaluate_script to return compact structured fields instead of long page text.",
-      "Use the public Apple US URLs from the task. For prices, extract full upfront standard-consumer US dollar amounts such as `$1,099`; ignore monthly installments such as `$91.58/mo` and education-savings ribbon prices."
+      "Use the public Apple US URLs from the task. For prices, extract full upfront standard-consumer US dollar amounts such as `$1,099`; ignore monthly installments such as `$91.58/mo` and education-savings ribbon prices.",
+      "Final scalar fact fields must be short facts under 120 characters. In particular, portsOrExternalDisplayNotes must be a concise port fact such as `Three Thunderbolt 4, HDMI, SDXC, MagSafe 3`; do not copy external-display paragraphs or multi-clause marketing text."
     ].join(" "),
     repl: [
-      "Use the installed mcp2repl skill to discover the local REPL workflow.",
-      "Codex has no browser MCP tools in this run; use shell only to run the local mcp2repl CLI against Chrome MCP.",
-      "Do not run shell for environment discovery, source inspection, previous artifact inspection, or broad file work. The only shell commands should read the skill staged REPL path and invoke node ./src/cli.js evaluator expressions.",
-      "REPL philosophy: control the size of each evaluator step. Do not write one all-in-one Apple task module or one probe() that visits every page. Use the SICP layering: MCP tools are primitive procedures, a few thin helpers are compound procedures, the persistent session is the environment, and artifacts are evaluator memory.",
-      "Isolation constraint: do not read, copy, grep, inspect, or derive from examples/real-world-codex-comparison/scripted-repl-task.js, native outputs, previous experiment artifacts, or any prewritten Apple task implementation. Build only the small interactive helpers and observations needed from the task prompt, the skill quick start, and runtime tool discovery.",
-      "Use mcp2repl as an interactive evaluator: MCP tools are primitive procedures, task JavaScript defines compound procedures on globalThis, and the persistent session is the evaluator environment.",
-      "The runner sets MCP2REPL_* defaults for config, server, session, JSON, timeout, max output, and artifact directory. Do not manually start a daemon; the first session client call auto-starts it.",
-      "Read at most the first 65 lines of the mcp2repl skill, then proceed with 5-9 small evaluator expressions. For every multi-line expression, use stdin eval with a quoted heredoc: `node ./src/cli.js --session apple -e - <<'JS' ... JS`. Do not wrap multi-line JavaScript in shell single quotes because `$`, `!`, and regex text will be corrupted. Do not create a file unless a domain-neutral helper becomes too long for a single readable command.",
-      "Step shape: first discover only the needed primitive procedures with api.searchTools or api.guide, but immediately project inside the evaluator to { name, inputKeys, call } and print at maxChars 2000; never return raw discovery results. Next define globalThis.appleTask = { facts:{ optionsPreview:{} }, sources:[] } and only thin generic helpers such as selectVisiblePage(), go(url), evalPage(fn,args), observeText(matchers), remember(key,value), and checkpoint(). These helpers may abstract MCP calling and compact observation, but must not encode the whole Apple task as a hidden one-shot program.",
-      "Each evaluator expression after helper setup must have one purpose: Air overview facts, Air shop size/price controls, Pro overview facts, Pro shop size/price controls, compare-page typed facts, missing-field repair, or final projection. Do not loop through all required pages in the first probe. Do not define probe(), run(), final(), or a broad repair loop that visits every page before Codex has seen intermediate checkpoints. Patch only the smallest helper or one extraction expression after a concrete syntax/runtime error or a compact checkpoint showing missing or visibly wrong facts.",
-      "Every checkpoint must return api.print({ step, invariantSoFar, missing, optionsPreview, sources }, { maxChars: 4000 }) or a similarly compact structure. Raw page text, full arrays, labels, controls, snippets, screenshots, and snapshots must be saved as artifacts or kept in evaluator state, not returned to Codex.",
-      "Once checkpoints contain correct product-scoped facts for the three scenarios and final() or the final projection returns invariantPassed:true, return that compact JSON immediately; do not polish optional qualitative fields.",
-      "Use the existing visible Chrome tab opened by the recorder. Do not call new_page or create additional browser pages/tabs. Navigate the current tab with navigate_page for every Apple URL so the observable Chrome window shows the work.",
-      "Do not call tools.navigate_page directly. In the generic helper layer, first call api.callTool('chrome-devtools','list_pages', {}), select the visible Apple page with api.callTool('chrome-devtools','select_page', { pageIdx }), then call api.callTool('chrome-devtools','navigate_page', { url }). This visible-page binding is required before every navigation.",
-      "Keep helpers concise. Use simple line-based extraction from visible page text and controls; do not build a broad scraper, configurator engine, click library, compare-table framework, or repair loop.",
-      "Do not assume a fixed Apple DOM. Wrap uncertain tool outputs with api.unwrap(...). For page JavaScript, use api.evalTool('evaluate_script', (args) => { ... }, args), not tools.evaluate_script with unsupported args.",
-      "Before visiting product pages, navigate the current tab to https://www.apple.com/ in the evaluator and set a US English Apple session cookie/localStorage. If any Apple URL lands on /choose-country-region/, the next small evaluator step must recover by selecting United States or resetting the US session and renavigating; do not treat the country chooser as product evidence.",
-      "Apple extraction rules: preserve body.innerText newlines; for size-specific prices read the nearest full upfront standard-consumer dollar price after '13-inch', '15-inch', or '14-inch' on public buy pages; ignore monthly installment amounts such as '$91.58/mo', education-savings ribbon prices, trade-in, AppleCare, delivery, checkout, compare placeholders, and tiny app/service prices. If one control label contains both an upfront price and a monthly price, extract the whole-dollar upfront price and ignore only the decimal '/mo' amount; do not discard the whole label.",
-      "Pricing validation rule: if a 13-inch Air price is below $1,000, a 15-inch Air price is below $1,200, or a 14-inch Pro price is below $1,600, treat it as an education/invalid price and repair extraction from the shop selector or configured buy URL.",
-      "Entity-scoped extraction rule: keep separate typed fact buckets for 13-inch Air, 15-inch Air, 14-inch Pro, shared Air facts, and shared Pro facts. Never satisfy a final product field from a global first regex match or broad page blob. Pro final fields/evidence must not mention MacBook Air; Air final fields/evidence must not mention MacBook Pro.",
-      "Typed spec rules: memory fields must come from capacity facts matching GB unified memory; storage fields must come from capacity facts matching 512GB/1TB/2TB/4TB/8TB SSD or storage. A higher capacity satisfies the minimum. If exact configured memory/storage is split or hidden, present conservative minimum-satisfying facts such as '16GB+ unified memory visible' or '512GB+ SSD/storage visible' only when those capacities appear somewhere in the observed Apple text; if several valid capacities appear, prefer the lowest one that satisfies the stated 512GB floor. For Pro, concise configurator fieldsets/control labels such as '16GB' near 'unified memory' and '512GB' or '1TB' near 'storage' are valid; testing, preproduction, and battery-test footnotes are invalid capacity evidence. Do not fill memory/storage/display/ports with broad marketing paragraphs. Do not use legacy/comparison labels such as Intel, M1, or M2 as the current chip for these M5 MacBook scenarios.",
-      "Final presentation rules: synthesize short factual fields from typed facts. Evidence is 2-4 short facts, not raw snippets. Optional fields such as portability, display, battery, and ports may use short conservative phrases or unknown/verify wording when exact evidence is not clean. Never copy Apple Card, Wallet, credit, checkout, bag, delivery, footer, legal, gallery, footnote, testing, preproduction, education savings, iMac, iPhone, iPad, Apple Watch, AirPods, or UI-control text into final product fields. Display should be a short display/screen fact or unknown; portability should be a short size/weight/travel fact or unknown and must include at least one of: pounds, lbs, kg, thin, lightweight, portable, travel, 13-inch, 14-inch, or 15-inch. Do not use vague phrases such as 'Air portability' without a concrete size/weight/travel cue. Battery claims must include a number plus hours or be unknown. Ports notes must mention a whole-word relevant port/display term or be unknown; 'Support' is not a port fact. final() must validate final-field quality and fail if chip/display/portability/battery/ports/evidence fields are broad paragraphs over 140 chars, contain noise text, unrelated product names, education prices, or if ports is not unknown and lacks a whole-word match for Thunderbolt, USB-C, MagSafe, HDMI, SDXC, port, ports, or external display. If final quality validation fails, return invariantPassed:false with missing reasons so Codex can patch once.",
-      "Do not hard-code prices, chip names, memory, storage, or evidence. Every non-unknown fact must come from a probe result returned by mcp2repl in this run.",
+      "The mcp2repl contract is summarized here; do not spend commands reading the skill, docs, source, previous artifacts, or scripted implementations unless a command fails.",
+      "Codex has no browser MCP tools. Use shell only to run the local mcp2repl CLI against Chrome MCP. The runner already sets MCP2REPL_CONFIG, MCP2REPL_SERVER, MCP2REPL_SESSION, MCP2REPL_JSON, MCP2REPL_QUIET, MCP2REPL_TIMEOUT, MCP2REPL_MAX_OUTPUT_CHARS, and MCP2REPL_ARTIFACT_DIR.",
+      "Use the shortest evaluator form: `node ./src/cli.js <<'JS' ... JS`. Do not repeat config/session/json/timeout flags. Start immediately with that evaluator command and avoid progress narration between successful steps.",
+      "REPL philosophy: MCP tools are primitive procedures, task helpers are compound procedures, the persistent session is the evaluator environment, and artifacts are evaluator memory. Optimize for uniformly fast semantic steps: no setup-only pause, no giant final step, no one shell command per primitive call.",
+      "Required sequence: (1) bootstrap a tiny environment and immediately navigate the current visible tab to https://www.apple.com/; (2) define-and-call one Air observation procedure for MacBook Air overview plus buy page; (3) define-and-call one Pro observation procedure for MacBook Pro overview plus buy/compare/spec fallback; (4) define-and-call final synthesis; at most one focused repair for a required-field failure.",
+      "Step size: bootstrap should stay under 18 nonblank JS lines; later evaluator commands should target 20-45 nonblank JS lines, do 1-3 related browser primitive calls, and return one compact checkpoint. After bootstrap, do not repeat helper bodies or prior procedure bodies. If optional fields make a step long, set them to `unknown`.",
+      "Bootstrap should be only this shape: define `globalThis.appleTask`, `go(url)`, `evalPage(fn,args)`, and `shortFact(text)`, then `await go('https://www.apple.com/')` and `return api.print({ step:'bootstrap', sources: appleTask.sources }, { maxChars: 1000 })`. Do not define price parsers, validators, checkpoint helpers, or product logic in bootstrap. It must already create visible browser motion.",
+      "Use the existing visible Chrome tab. Do not call new_page, list_pages, or select_page unless navigate_page fails. Navigate with `mcp.call('navigate_page', { url })`; evaluate page JavaScript with `api.evalTool('evaluate_script', (args) => { ... }, args)` and wrap uncertain tool outputs with `api.unwrap(...)`.",
+      "Functions passed to api.evalTool are stringified for the page. They must be self-contained; never pass `(a) => fn(a)` or close over evaluator variables.",
+      "Checkpoints must be compact: `api.print({ step, invariantSoFar, missingRequired, optionsPreview, sources }, { maxChars: 3000, maxString: 120 })`. Keep raw page text, snippets, controls, and arrays in evaluator state or artifacts, not in the transcript. The final synthesis step is different: it must return the final JSON object itself with `api.print(final, { maxChars: 9000, maxString: 500 })`; do not run a separate preview/export command.",
+      "Apple facts: use public US/English Apple pages only; never login, cart, checkout, personal data, curl, wget, Python requests, direct fetches, or browserless scraping. If redirected to country selection, recover in the next evaluator step by resetting/selecting United States.",
+      "Prices: extract whole upfront standard-consumer laptop prices from visible text/control labels; ignore monthly `/mo`, education ribbon, trade-in, AppleCare, delivery, checkout, compare placeholders, and tiny service prices. Avoid dollar regexes and negated shell-sensitive expressions. Use a tiny scanner inside the page function: split text on `String.fromCharCode(36)`, collect leading digits/commas from each segment, keep values with at least four raw characters, reject segments whose first 48 characters include `/mo`, then prefix the dollar sign again.",
+      "Fast price rule: on Air/Pro buy pages, document-order whole-dollar laptop prices are valid when size selectors are visible: first >= $1,000 for 13-inch Air, next/first >= $1,200 for 15-inch Air, and first >= $1,600 for 14-inch Pro. Do not click only to reconfirm a non-missing price.",
+      "Typed facts: keep separate buckets for 13-inch Air, 15-inch Air, and 14-inch Pro. Prefer M5 labels. Normalize fields to short facts such as `M5 chip`, `16GB unified memory visible`, `512GB storage visible`, or for Pro `M5 Pro/Max options visible` and `1TB storage visible` if that is the visible minimum-satisfying storage. If the Pro buy/spec pages expose a unified-memory section but hide exact 16GB after one fallback, use `16GB+ unified memory section visible; verify exact capacity before purchase` instead of `unknown` and continue. Unknown is acceptable only for optional display/battery/ports/portability.",
+      "Final answer: synthesize from typed facts, with 2-4 short evidence facts per option. Evidence must be product-specific; Pro evidence must include a Pro cue such as MacBook Pro, Liquid Retina XDR, Thunderbolt, HDMI, SDXC, or M5 Pro/Max; Air evidence must include Air/13-inch/15-inch/MagSafe/18-hour style cues. Every scalar fact and evidence item should stay under 120 characters.",
+      "Do not hard-code prices, chip names, memory, storage, or evidence. Every non-unknown required fact must come from a checkpoint or evaluator state created in this run.",
       "Do not use curl, wget, Python requests, browserless scraping, or direct network fetches outside Chrome MCP."
     ].join(" "),
     scripted: [
@@ -230,6 +227,7 @@ async function copyIfExists(source, destination) {
 }
 
 async function runCodexVariant(variant, prompt, jsonlPath, resultPath) {
+  const startedAt = Date.now();
   let lastFailure;
   let currentPrompt = prompt;
   let combinedJsonl = "";
@@ -253,7 +251,10 @@ async function runCodexVariant(variant, prompt, jsonlPath, resultPath) {
           await fs.writeFile(attemptResultPath, summarizedText);
           await fs.writeFile(jsonlPath, combinedJsonl);
           if (attemptResultPath !== resultPath) await fs.copyFile(attemptResultPath, resultPath);
-          return summarizeRun(variant.name, combinedJsonl, summarizedText);
+          return summarizeRun(variant.name, combinedJsonl, summarizedText, {
+            durationMs: Date.now() - startedAt,
+            attempts: attempt
+          });
         }
         console.error(`${variant.name}: generated program failed validation on attempt ${attempt}/${maxCodexAttempts}; retrying with REPL error feedback`);
         currentPrompt = renderNativeRepairPrompt(prompt, generatedCode, finalText);
@@ -261,7 +262,17 @@ async function runCodexVariant(variant, prompt, jsonlPath, resultPath) {
       }
       if (attemptJsonlPath !== jsonlPath) await fs.copyFile(attemptJsonlPath, jsonlPath);
       if (attemptResultPath !== resultPath) await copyIfExists(attemptResultPath, resultPath);
-      return summarizeRun(variant.name, result.jsonl, await readOptional(attemptResultPath));
+      let finalText = await readOptional(attemptResultPath);
+      const recoveredFinalText = recoverFinalTextFromJsonl(result.jsonl);
+      if (!normalizeFinalJson(parseFinalJson(finalText)) && recoveredFinalText) {
+        finalText = recoveredFinalText;
+        await fs.writeFile(attemptResultPath, finalText);
+        if (attemptResultPath !== resultPath) await fs.writeFile(resultPath, finalText);
+      }
+      return summarizeRun(variant.name, result.jsonl, finalText, {
+        durationMs: Date.now() - startedAt,
+        attempts: attempt
+      });
     }
 
     lastFailure = result;
@@ -491,22 +502,53 @@ async function runCodexAttempt(variant, prompt, jsonlPath, resultPath) {
     stdio: ["ignore", "pipe", "inherit"]
   });
 
-  let jsonl = "";
+  let rawJsonl = "";
+  let recordedJsonl = "";
+  let lineBuffer = "";
   child.stdout.on("data", (chunk) => {
     process.stderr.write(chunk);
-    jsonl += chunk;
+    const text = chunk.toString();
+    rawJsonl += text;
+    lineBuffer += text;
+    let newlineIndex;
+    while ((newlineIndex = lineBuffer.indexOf("\n")) >= 0) {
+      const line = lineBuffer.slice(0, newlineIndex);
+      lineBuffer = lineBuffer.slice(newlineIndex + 1);
+      recordedJsonl += `${recordJsonlLine(line)}\n`;
+    }
   });
 
   const code = await new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("close", resolve);
   });
-  await fs.writeFile(jsonlPath, jsonl);
+  if (lineBuffer) {
+    recordedJsonl += recordJsonlLine(lineBuffer);
+  }
+  await fs.writeFile(jsonlPath, recordedJsonl);
+  await fs.writeFile(rawJsonlPath(jsonlPath), rawJsonl);
 
-  return { code, jsonl };
+  return { code, jsonl: recordedJsonl, rawJsonl };
 }
 
-function summarizeRun(name, jsonl, finalText) {
+function recordJsonlLine(line) {
+  if (!line.trim().startsWith("{")) return line;
+  try {
+    const event = JSON.parse(line);
+    const recordedAtMs = Date.now();
+    event._recordedAtMs = recordedAtMs;
+    event._recordedAt = new Date(recordedAtMs).toISOString();
+    return JSON.stringify(event);
+  } catch {
+    return line;
+  }
+}
+
+function rawJsonlPath(jsonlPath) {
+  return jsonlPath.replace(/\.jsonl$/i, ".raw.jsonl");
+}
+
+function summarizeRun(name, jsonl, finalText, meta = {}) {
   const events = jsonl
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -544,13 +586,16 @@ function summarizeRun(name, jsonl, finalText) {
   }
   usage.total_tokens = usage.input_tokens + usage.output_tokens;
 
-  const finalJson = parseFinalJson(finalText);
+  const finalJson = normalizeFinalJson(parseFinalJson(finalText));
   const validation = validateResult(finalJson);
   return {
     name,
     skillInstalled: variantByName(name)?.skillInstalled ?? false,
     codexMcpInjected: variantByName(name)?.codexMcpInjected ?? false,
     usage,
+    durationMs: meta.durationMs ?? 0,
+    attempts: meta.attempts ?? 1,
+    stepTiming: summarizeStepTiming(events),
     itemTypes,
     failedItems,
     humanCodexOutput,
@@ -559,6 +604,85 @@ function summarizeRun(name, jsonl, finalText) {
     externalValidationPassed: validation.passed,
     externalValidationFailures: validation.failures
   };
+}
+
+function summarizeStepTiming(events) {
+  const starts = new Map();
+  const actions = [];
+  const firstEventTime = events.find((event) => Number.isFinite(event._recordedAtMs))?._recordedAtMs;
+
+  for (const event of events) {
+    const item = event.item;
+    const time = event._recordedAtMs;
+    if (!item?.id || !Number.isFinite(time) || !isActionItem(item)) continue;
+
+    if (event.type === "item.started") {
+      starts.set(item.id, {
+        id: item.id,
+        type: item.type,
+        label: item.tool ?? item.name ?? commandLabel(item.command) ?? item.type,
+        startedAtMs: time
+      });
+    } else if (event.type === "item.completed" && starts.has(item.id)) {
+      const started = starts.get(item.id);
+      actions.push({
+        ...started,
+        completedAtMs: time,
+        durationMs: Math.max(0, time - started.startedAtMs),
+        status: item.status
+      });
+      starts.delete(item.id);
+    }
+  }
+
+  actions.sort((a, b) => a.startedAtMs - b.startedAtMs);
+  const durations = actions.map((action) => action.durationMs).sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 1; i < actions.length; i += 1) {
+    gaps.push(Math.max(0, actions[i].startedAtMs - actions[i - 1].completedAtMs));
+  }
+
+  return {
+    recorded: Number.isFinite(firstEventTime),
+    actionCount: actions.length,
+    firstActionMs: actions.length && Number.isFinite(firstEventTime)
+      ? Math.max(0, actions[0].startedAtMs - firstEventTime)
+      : 0,
+    medianActionMs: percentile(durations, 0.5),
+    p90ActionMs: percentile(durations, 0.9),
+    maxActionMs: durations.at(-1) ?? 0,
+    maxInterActionGapMs: gaps.length ? Math.max(...gaps) : 0,
+    slowestActions: [...actions]
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .slice(0, 3)
+      .map((action) => ({
+        type: action.type,
+        label: action.label,
+        durationMs: action.durationMs,
+        status: action.status
+      }))
+  };
+}
+
+function isActionItem(item) {
+  return item.type === "mcp_tool_call" || item.type === "command_execution" || item.type === "file_change";
+}
+
+function commandLabel(command) {
+  if (!command) return null;
+  const value = String(command).replace(/\s+/g, " ").trim();
+  if (value.includes("--load") && value.includes("--call")) return "mcp2repl load+call";
+  if (value.includes("--load")) return "mcp2repl load";
+  if (value.includes("--call")) return value.match(/--call\s+([^\s'"]+)/)?.[1] ?? "mcp2repl call";
+  if (value.includes(" -e ") || value.includes(" --eval ")) return "mcp2repl eval";
+  if (value.includes("node ./src/cli.js") || value.includes("mcp2repl")) return "mcp2repl stdin eval";
+  return value.slice(0, 80);
+}
+
+function percentile(values, ratio) {
+  if (!values.length) return 0;
+  const index = Math.min(values.length - 1, Math.max(0, Math.ceil(values.length * ratio) - 1));
+  return values[index];
 }
 
 function validateResult(parsed) {
@@ -581,9 +705,9 @@ function validateResult(parsed) {
     price: parseLaptopPrice(option.configuredOrRelevantPrice) ?? parseLaptopPrice(option.visibleStartingPrice)
   }));
 
-  const air13 = normalized.find(({ identityText }) => /13[^a-z0-9]*inch.*macbook air|macbook air.*13[^a-z0-9]*inch/.test(identityText));
-  const air15 = normalized.find(({ identityText }) => /15[^a-z0-9]*inch.*macbook air|macbook air.*15[^a-z0-9]*inch/.test(identityText));
-  const pro14 = normalized.find(({ identityText }) => /14[^a-z0-9]*inch.*macbook pro|macbook pro.*14[^a-z0-9]*inch/.test(identityText));
+  const air13 = normalized.find(({ identityText }) => hasSizedProduct(identityText, 13, "macbook air"));
+  const air15 = normalized.find(({ identityText }) => hasSizedProduct(identityText, 15, "macbook air"));
+  const pro14 = normalized.find(({ identityText }) => hasSizedProduct(identityText, 14, "macbook pro"));
   if (!air13) failures.push("missing distinct 13-inch MacBook Air option");
   if (!air15) failures.push("missing distinct 15-inch MacBook Air option");
   if (!pro14) failures.push("missing distinct 14-inch MacBook Pro option");
@@ -623,6 +747,12 @@ function validateResult(parsed) {
 
 function resultLooksValid(parsed) {
   return validateResult(parsed).passed;
+}
+
+function hasSizedProduct(identityText, size, productName) {
+  const sizeExpr = `${size}[^a-z0-9]*(?:inch|in\\.?)`;
+  const productExpr = productName.replace(/\s+/g, "\\s+");
+  return new RegExp(`${sizeExpr}.*${productExpr}|${productExpr}.*${sizeExpr}`, "i").test(identityText);
 }
 
 function productSeparationFailures(entry, family, label) {
@@ -688,7 +818,7 @@ function presentationQualityFailures(option) {
   }
 
   const portability = String(option.weightOrPortability ?? "");
-  if (!isUnknown(portability) && !/(pounds?|lbs?|kg|thin|lightweight|portable|travel|13-inch|15-inch|14-inch)/i.test(portability)) {
+  if (!isUnknown(portability) && !/(pounds?|lbs?|kg|thin|lightweight|portable|travel|13-inch|15-inch|14-inch|smallest|larger screen|compact)/i.test(portability)) {
     failures.push(`${label} portability field is not a size, weight, or travel fact`);
   }
 
@@ -739,14 +869,27 @@ function renderMarkdown(summaries) {
     "",
     `Model: ${model ?? "Codex default"}`,
     "",
-    "| Variant | Skill | Codex MCP | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Invariant passed | Failed items | Item types |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |"
+    "| Variant | Skill | Codex MCP | Duration | Attempts | Input | Cached input | Uncached input | Output | Reasoning output | Total | Uncached total | Invariant passed | Failed items | Item types |",
+    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |"
   ];
 
   for (const summary of summaries) {
     const uncachedInput = Math.max(0, summary.usage.input_tokens - summary.usage.cached_input_tokens);
     const uncachedTotal = uncachedInput + summary.usage.output_tokens;
-    lines.push(`| ${summary.name} | ${summary.skillInstalled ? "yes" : "no"} | ${summary.codexMcpInjected ? "yes" : "no"} | ${summary.usage.input_tokens} | ${summary.usage.cached_input_tokens} | ${uncachedInput} | ${summary.usage.output_tokens} | ${summary.usage.reasoning_output_tokens} | ${summary.usage.total_tokens} | ${uncachedTotal} | ${summary.externalValidationPassed ? "true" : "false"} | ${summary.failedItems} | ${inlineCode(JSON.stringify(summary.itemTypes))} |`);
+    lines.push(`| ${summary.name} | ${summary.skillInstalled ? "yes" : "no"} | ${summary.codexMcpInjected ? "yes" : "no"} | ${formatSeconds(summary.durationMs)} | ${summary.attempts} | ${summary.usage.input_tokens} | ${summary.usage.cached_input_tokens} | ${uncachedInput} | ${summary.usage.output_tokens} | ${summary.usage.reasoning_output_tokens} | ${summary.usage.total_tokens} | ${uncachedTotal} | ${summary.externalValidationPassed ? "true" : "false"} | ${summary.failedItems} | ${inlineCode(JSON.stringify(summary.itemTypes))} |`);
+  }
+
+  lines.push("");
+  lines.push("## Recorded Step Timing");
+  lines.push("");
+  lines.push("| Variant | Action steps | First action | Median action | P90 action | Max action | Max gap between actions | Slowest actions |");
+  lines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
+  for (const summary of summaries) {
+    const timing = summary.stepTiming ?? {};
+    const slowest = (timing.slowestActions ?? [])
+      .map((action) => `${action.label}:${formatSeconds(action.durationMs)}`)
+      .join(", ");
+    lines.push(`| ${summary.name} | ${timing.actionCount ?? 0} | ${formatSeconds(timing.firstActionMs)} | ${formatSeconds(timing.medianActionMs)} | ${formatSeconds(timing.p90ActionMs)} | ${formatSeconds(timing.maxActionMs)} | ${formatSeconds(timing.maxInterActionGapMs)} | ${inlineCode(slowest || "n/a")} |`);
   }
 
   const validationFailures = summaries.filter((summary) => !summary.externalValidationPassed);
@@ -775,6 +918,16 @@ function renderMarkdown(summaries) {
         : "0.00";
       const direction = saved >= 0 ? "reduction" : "increase";
       lines.push(`${summary.name} delta vs pure-mcp: ${deltaLabel} (${percent}% ${direction}, ${efficiency}x baseline/variant ratio).`);
+    }
+    for (const summary of summaries.filter((item) => item !== baseline)) {
+      const speed = summary.durationMs > 0
+        ? (baseline.durationMs / summary.durationMs).toFixed(2)
+        : "0.00";
+      const elapsedDelta = baseline.durationMs - summary.durationMs;
+      const elapsedLabel = elapsedDelta >= 0
+        ? `${formatSeconds(elapsedDelta)} faster`
+        : `${formatSeconds(Math.abs(elapsedDelta))} slower`;
+      lines.push(`${summary.name} elapsed vs pure-mcp: ${elapsedLabel} (${speed}x baseline/variant time ratio).`);
     }
   }
 
@@ -815,6 +968,34 @@ function parseFinalJson(text) {
   return null;
 }
 
+function normalizeFinalJson(parsed) {
+  if (parsed && typeof parsed === "object" && parsed.ok === true && parsed.result && typeof parsed.result === "object") {
+    return parsed.result;
+  }
+  return parsed;
+}
+
+function recoverFinalTextFromJsonl(jsonl) {
+  let recovered = null;
+  for (const line of jsonl.split(/\r?\n/)) {
+    if (!line.trim().startsWith("{")) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (event.type !== "item.completed" || event.item?.type !== "command_execution") continue;
+    const output = event.item.aggregated_output;
+    if (!output) continue;
+    const parsed = normalizeFinalJson(parseFinalJson(output));
+    if (parsed?.invariantPassed === true && Array.isArray(parsed.options)) {
+      recovered = JSON.stringify(parsed);
+    }
+  }
+  return recovered;
+}
+
 async function readOptional(filePath) {
   try {
     return await fs.readFile(filePath, "utf8");
@@ -833,6 +1014,10 @@ function timestamp() {
 
 function inlineCode(value) {
   return `\`${String(value).replaceAll("`", "\\`")}\``;
+}
+
+function formatSeconds(ms) {
+  return `${(Number(ms || 0) / 1000).toFixed(1)}s`;
 }
 
 function variantByName(name) {
