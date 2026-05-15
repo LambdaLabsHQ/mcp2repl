@@ -19,10 +19,12 @@ mcp2repl procedure.
 
 [Open the comparison video](docs/assets/real-world-time-token-comparison.mp4)
 
-The embedded video is the three-row comparison: Codex process on the left,
-visible Chrome on the right. The middle row finishes while the pure MCP row is
-still issuing browser tool calls. That is the core difference: mcp2repl lets an
-agent compose multiple MCP primitives into one evaluator step.
+The embedded video is accelerated to 2x playback to keep the README concise.
+The elapsed labels over Chrome still show the original run clock. It is the
+three-row comparison: Codex process on the left, visible Chrome on the right.
+The middle row finishes while the pure MCP row is still issuing browser tool
+calls. That is the core difference: mcp2repl lets an agent compose multiple MCP
+primitives into one evaluator step.
 
 | Result | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |

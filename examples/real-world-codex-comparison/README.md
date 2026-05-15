@@ -80,11 +80,11 @@ procedure.
 
 [![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
 
-The committed video uses the original comparison layout: three rows, each with
-Codex TUI on the left and visible Chrome recording on the right. The rows are
-Pure Chrome MCP, Interactive REPL, and Prewritten REPL. Use the strict JSONL
-tables above for benchmark claims; use the video to inspect the actual process
-shape and browser motion.
+The committed video is a 2x playback copy of the original comparison layout:
+three rows, each with Codex TUI on the left and visible Chrome recording on the
+right. The rows are Pure Chrome MCP, Interactive REPL, and Prewritten REPL. Use
+the strict JSONL tables above for benchmark claims; use the video to inspect
+the actual process shape and browser motion.
 
 How to read the video:
 
@@ -104,10 +104,11 @@ How to read the video:
   procedure, so Chrome moves in one continuous burst and the terminal has one
   evaluator command.
 - The final stitched video freezes shorter rows after they finish. In the
-  current recording, scripted finishes around 0:46, interactive around 2:03,
-  and pure MCP around 4:09. The freeze is intentional: it keeps one shared
-  clock so the viewer can see that pure MCP is still working after the REPL
-  rows are done.
+  source recording, scripted finishes around 0:46, interactive around 2:03,
+  and pure MCP around 4:09. The committed README copy plays at 2x speed, but
+  the on-screen elapsed labels still show that original run clock. The freeze
+  is intentional: it keeps one shared clock so the viewer can see that pure MCP
+  is still working after the REPL rows are done.
 
 The most important visual difference is therefore not which Apple subpage is on
 screen at a particular second. It is that pure MCP spends the whole recording in
@@ -132,9 +133,10 @@ between model turns.
 
 Final video artifacts:
 
-- `docs/assets/real-world-time-token-comparison.mp4`: committed README video.
+- `docs/assets/real-world-time-token-comparison.mp4`: committed README video,
+  accelerated to 2x playback.
 - `docs/assets/real-world-time-token-comparison.jpg`: committed preview frame.
-- `.tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.web.mp4`: local stitched source used for docs.
+- `.tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.web.mp4`: local full-speed stitched source used for docs.
 
 ## Task
 
@@ -337,9 +339,26 @@ npm run record:real-world:stitch -- \
   --pure .tmp/recordings/20260515T045436Z-pure-mcp-composite/composite.mp4 \
   --interactive .tmp/recordings/20260515T044829Z-interactive-repl-composite/composite.mp4 \
   --scripted .tmp/recordings/20260515T045904Z-scripted-repl-composite/composite.mp4 \
-  --out docs/assets/real-world-time-token-comparison.mp4 \
-  --poster docs/assets/real-world-time-token-comparison.jpg \
+  --out .tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.web.mp4 \
+  --poster .tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.jpg \
   --poster-time 120
+```
+
+Create the shorter README copy from that full-speed source:
+
+```bash
+ffmpeg -hide_banner -y \
+  -i .tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.web.mp4 \
+  -filter:v "setpts=0.5*PTS" \
+  -r 24 -an -c:v libx264 -crf 28 -preset medium -pix_fmt yuv420p \
+  -movflags +faststart \
+  docs/assets/real-world-time-token-comparison.mp4
+
+ffmpeg -hide_banner -y \
+  -ss 60 \
+  -i docs/assets/real-world-time-token-comparison.mp4 \
+  -frames:v 1 -q:v 3 \
+  docs/assets/real-world-time-token-comparison.jpg
 ```
 
 ## Useful Files
