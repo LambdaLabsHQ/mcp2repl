@@ -39,10 +39,12 @@ fewer total tokens because raw browser observations stay inside the evaluator.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
-Click the preview to open the recorded comparison video. It shows native Codex
-TUI output beside visible Chrome for Pure Chrome MCP, Interactive REPL, and
-Prewritten REPL. The video is for process inspection; the benchmark above comes
-from non-human Codex JSONL transcripts.
+Click the preview to open the benchmark replay video. It is generated from the
+same strict Codex JSONL transcripts used by the table, so it shows the speed
+advantage on one shared clock: Prewritten REPL finishes first, Interactive REPL
+finishes at 105.1s, and Pure Chrome MCP keeps running until 175.5s. The action
+bars show step distribution, including the interactive run's four bounded
+evaluator actions, zero repairs, and no separate final export step.
 
 The important difference is the unit of interaction. Pure MCP exposes each
 browser primitive as a top-level agent action. Interactive REPL keeps the
