@@ -86,6 +86,35 @@ Pure Chrome MCP, Interactive REPL, and Prewritten REPL. Use the strict JSONL
 tables above for benchmark claims; use the video to inspect the actual process
 shape and browser motion.
 
+How to read the video:
+
+- The rows are independent real runs, not replayed from one browser trace. The
+  recorder resets Chrome to Apple before each row, but Apple page carousel,
+  scroll, and configurator state can differ. Compare process shape and pacing,
+  not exact pixels.
+- Pure Chrome MCP is a direct-action process. The terminal shows many
+  `chrome-devtools/evaluate_script` calls because every browser primitive is a
+  top-level Codex action. Some calls do not visibly move Chrome because they
+  read DOM state, but they still cost a full agent action.
+- Interactive REPL is a procedure-abstraction process. The terminal shows a
+  small number of `mcp2repl eval` commands. Each command defines or calls a
+  compound procedure, and Chrome then performs a cluster of page actions inside
+  the evaluator before returning a compact checkpoint.
+- Prewritten REPL is the factored endpoint. It runs one reusable compound
+  procedure, so Chrome moves in one continuous burst and the terminal has one
+  evaluator command.
+- The final stitched video freezes shorter rows after they finish. In the
+  current recording, scripted finishes around 0:46, interactive around 2:03,
+  and pure MCP around 4:09. The freeze is intentional: it keeps one shared
+  clock so the viewer can see that pure MCP is still working after the REPL
+  rows are done.
+
+The most important visual difference is therefore not which Apple subpage is on
+screen at a particular second. It is that pure MCP spends the whole recording in
+small remote tool turns, while interactive REPL compresses browser work into a
+few evaluator turns and keeps the intermediate browser state out of the model
+transcript.
+
 Final video artifacts:
 
 - `docs/assets/real-world-time-token-comparison.mp4`: committed README video.

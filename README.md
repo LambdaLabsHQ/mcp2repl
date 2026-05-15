@@ -46,6 +46,16 @@ right. The rows are Pure Chrome MCP, Interactive REPL, and Prewritten REPL. The
 table above is the strict JSONL benchmark source; the video is for visually
 checking the process shape and relative pacing.
 
+Read the video by operation shape, not by pixel-perfect page equality. Pure MCP
+keeps issuing many top-level `evaluate_script` calls while Chrome often appears
+still, because observation itself is the work. Interactive REPL shows fewer,
+larger evaluator bursts: Codex writes a compound procedure, Chrome performs a
+small cluster of page actions, then Codex decides the next procedure. The
+scripted row finishes first and freezes; the interactive row freezes after it
+finishes; the pure MCP row continues until the shared video clock ends. Those
+frozen rows are intentional, so the elapsed-time difference is visible in one
+three-row recording.
+
 The important difference is the unit of interaction. Pure MCP exposes each
 browser primitive as a top-level agent action. Interactive REPL keeps the
 browser primitives in a persistent evaluator and asks Codex to evaluate one
