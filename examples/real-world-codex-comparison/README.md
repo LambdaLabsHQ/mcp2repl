@@ -20,37 +20,37 @@ Model: `gpt-5.5`
 
 All rows use the same accounting source: Codex JSONL usage events recorded by
 `run.mjs`. Each row below is the latest strict pass for that variant after the
-procedure-abstraction prompt was tightened to avoid setup-only pauses, repair
-churn, and extra final export commands.
+procedure-abstraction prompt was tightened to avoid setup-only pauses, failed
+repair churn, and extra final export commands.
 
 Run artifacts:
 
-- Pure Chrome MCP: `.tmp/real-world-codex-comparison/2026-05-14T22-06-31-970Z`
-- Interactive REPL: `.tmp/real-world-codex-comparison/2026-05-14T22-13-13-600Z`
-- Prewritten REPL: `.tmp/real-world-codex-comparison/2026-05-14T22-15-09-411Z`
+- Pure Chrome MCP: `.tmp/real-world-codex-comparison/2026-05-15T04-54-40-184Z`
+- Interactive REPL: `.tmp/real-world-codex-comparison/2026-05-15T04-48-32-699Z`
+- Prewritten REPL: `.tmp/real-world-codex-comparison/2026-05-15T04-59-07-698Z`
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
 | Process abstraction | direct tool calls | small evaluator steps | reusable compound procedure |
 | External validation | pass | pass | pass |
 | Failed transcript items | 0 | 0 | 0 |
-| Input tokens | 2,006,967 | 133,693 | 49,448 |
-| Cached input tokens | 1,882,496 | 117,632 | 44,800 |
-| Uncached input tokens | 124,471 | 16,061 | 4,648 |
-| Output tokens | 5,480 | 3,937 | 1,181 |
-| Reasoning output tokens | 1,232 | 0 | 99 |
-| Total tokens | 2,012,447 | 137,630 | 50,629 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.068x | 0.025x |
-| Token advantage | baseline | 14.62x fewer | 39.75x fewer |
-| Total token reduction | baseline | 93.2% less | 97.5% less |
-| Uncached input + output | 129,951 | 19,998 | 5,829 |
-| Uncached token advantage | baseline | 6.50x fewer | 22.29x fewer |
-| Uncached reduction | baseline | 84.6% less | 95.5% less |
-| Strict JSONL elapsed | 175.5s | 105.1s | 51.8s |
-| Time vs Pure Chrome MCP | 1.00x | 0.60x | 0.30x |
-| Time advantage | baseline | 1.67x faster | 3.39x faster |
-| Top-level operations | 27 MCP tool calls | 4 evaluator commands | 1 evaluator command |
-| Item types | `{"mcp_tool_call":27,"agent_message":1}` | `{"command_execution":4,"agent_message":1}` | `{"agent_message":2,"command_execution":1}` |
+| Input tokens | 1,281,944 | 287,477 | 97,655 |
+| Cached input tokens | 1,208,576 | 267,520 | 84,480 |
+| Uncached input tokens | 73,368 | 19,957 | 13,175 |
+| Output tokens | 7,484 | 4,885 | 1,164 |
+| Reasoning output tokens | 1,346 | 417 | 33 |
+| Total tokens | 1,289,428 | 292,362 | 98,819 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.227x | 0.077x |
+| Token advantage | baseline | 4.41x fewer | 13.05x fewer |
+| Total token reduction | baseline | 77.3% less | 92.3% less |
+| Uncached input + output | 80,852 | 24,842 | 14,339 |
+| Uncached token advantage | baseline | 3.25x fewer | 5.64x fewer |
+| Uncached reduction | baseline | 69.3% less | 82.3% less |
+| Strict JSONL elapsed | 248.9s | 122.4s | 47.8s |
+| Time vs Pure Chrome MCP | 1.00x | 0.49x | 0.19x |
+| Time advantage | baseline | 2.03x faster | 5.21x faster |
+| Top-level operations | 36 MCP tool calls | 5 evaluator commands | 1 evaluator command |
+| Item types | `{"agent_message":5,"mcp_tool_call":36}` | `{"command_execution":5,"agent_message":1}` | `{"command_execution":1,"agent_message":1}` |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
@@ -61,19 +61,20 @@ This makes total time and per-step distribution comparable across variants.
 
 | Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| Action steps | 27 | 4 | 1 |
-| First action | 13.9s | 14.3s | 16.0s |
-| Median action | 0.8s | 1.1s | 16.9s |
-| P90 action | 3.1s | 7.7s | 16.9s |
-| Max action duration | 6.7s | 7.7s | 16.9s |
-| Max gap between actions | 8.5s | 21.6s | 0.0s |
-| Slowest actions | `evaluate_script:6.7s, evaluate_script:3.7s, evaluate_script:3.1s` | `mcp2repl stdin eval:7.7s, mcp2repl stdin eval:5.8s, mcp2repl stdin eval:1.1s` | `mcp2repl stdin eval:16.9s` |
+| Action steps | 36 | 5 | 1 |
+| First action | 11.0s | 20.0s | 14.6s |
+| Median action | 0.9s | 2.6s | 12.8s |
+| P90 action | 5.1s | 3.0s | 12.8s |
+| Max action duration | 5.1s | 3.0s | 12.8s |
+| Max gap between actions | 7.6s | 22.3s | 0.0s |
+| Slowest actions | `evaluate_script:5.1s, evaluate_script:5.1s, evaluate_script:5.1s` | `mcp2repl eval:3.0s, mcp2repl eval:2.7s, mcp2repl eval:2.6s` | `mcp2repl stdin eval:12.8s` |
 
-The interactive REPL result is now faster both in total and at the evaluator
-action layer: it has no setup-only command, no failed repair step, and no
-separate final export command. Its remaining non-uniformity is the 21.6s
-model-composition gap between evaluator steps. That gap is not browser work; it
-is Codex writing the next compound procedure.
+The interactive REPL result is faster both in total and at the evaluator action
+layer: it has no failed commands, no source-inspection detour, and no separate
+final export command. All five evaluator actions complete within 3.0s. Its
+remaining non-uniformity is the 22.3s model-composition gap between evaluator
+steps. That gap is not browser work; it is Codex writing the next compound
+procedure.
 
 ## Three-Row Process Video
 
@@ -89,7 +90,7 @@ Final video artifacts:
 
 - `docs/assets/real-world-time-token-comparison.mp4`: committed README video.
 - `docs/assets/real-world-time-token-comparison.jpg`: committed preview frame.
-- `.tmp/recordings/20260514T220100Z-three-way-comparison/final-time-token-comparison.web.mp4`: local stitched source used for docs.
+- `.tmp/recordings/20260515T050200Z-three-way-comparison/final-time-token-comparison.web.mp4`: local stitched source used for docs.
 
 ## Task
 
@@ -115,6 +116,7 @@ Pages:
 - `https://www.apple.com/mac/compare/`
 - `https://www.apple.com/us/shop/buy-mac/macbook-air`
 - `https://www.apple.com/us/shop/buy-mac/macbook-pro`
+- `https://www.apple.com/us/shop/buy-mac/macbook-pro/14-inch`
 
 Required options:
 
@@ -264,9 +266,12 @@ The composite recorder captures native Codex TUI with `asciinema`, captures
 visible Chrome through CDP screencast, and writes a side-by-side MP4.
 
 ```bash
-CODEX_MODEL=gpt-5.5 npm run record:real-world:composite -- pure-mcp
-CODEX_MODEL=gpt-5.5 npm run record:real-world:composite -- interactive-repl
-CODEX_MODEL=gpt-5.5 npm run record:real-world:composite -- scripted-repl
+RECORD_STRICT_JSON=1 CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=1 \
+  npm run record:real-world:composite -- pure-mcp
+RECORD_STRICT_JSON=1 CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=1 \
+  npm run record:real-world:composite -- interactive-repl
+RECORD_STRICT_JSON=1 CODEX_MODEL=gpt-5.5 CODEX_ATTEMPTS=1 \
+  npm run record:real-world:composite -- scripted-repl
 ```
 
 Each composite directory includes:
@@ -281,6 +286,18 @@ The dashboard recorder reformats Codex output in HTML. The native-only recorder
 captures the real TUI but does not include Chrome. Use the composite recorder
 for comparison videos.
 
+Stitch the three composite videos into the committed three-row layout:
+
+```bash
+npm run record:real-world:stitch -- \
+  --pure .tmp/recordings/20260515T045436Z-pure-mcp-composite/composite.mp4 \
+  --interactive .tmp/recordings/20260515T044829Z-interactive-repl-composite/composite.mp4 \
+  --scripted .tmp/recordings/20260515T045904Z-scripted-repl-composite/composite.mp4 \
+  --out docs/assets/real-world-time-token-comparison.mp4 \
+  --poster docs/assets/real-world-time-token-comparison.jpg \
+  --poster-time 120
+```
+
 ## Useful Files
 
 - `run.mjs`: experiment runner, Codex isolation, variant setup, usage parsing,
@@ -290,6 +307,8 @@ for comparison videos.
 - `scripted-repl-task.js`: prewritten REPL program used by the scripted arm.
 - `record-composite.mjs`: records native Codex TUI and visible Chrome side by
   side.
+- `stitch-comparison-video.mjs`: stacks the three side-by-side recordings into
+  one comparison video and freezes shorter rows to the baseline duration.
 - `.tmp/real-world-codex-comparison/<timestamp>/summary.md`: per-run summary.
 - `.tmp/real-world-codex-comparison/<timestamp>/*.jsonl`: timestamped Codex
   JSONL transcript for the run.

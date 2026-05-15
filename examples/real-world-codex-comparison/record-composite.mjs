@@ -25,6 +25,7 @@ const terminalMp4Path = path.join(terminalDir, "codex.mp4");
 const browserMp4Path = path.join(browserDir, "recording.mp4");
 const compositeMp4Path = path.join(outDir, "composite.mp4");
 const idleLimit = process.env.NATIVE_TUI_IDLE_LIMIT ?? "9999";
+const strictJsonRecording = process.env.RECORD_STRICT_JSON === "1";
 
 await ensureCommand("asciinema");
 await ensureCommand("agg");
@@ -37,7 +38,8 @@ await resetChrome(chromeUrl);
 
 const env = {
   ...process.env,
-  CODEX_HUMAN_OUTPUT: "1",
+  CODEX_HUMAN_OUTPUT: strictJsonRecording ? "0" : "1",
+  ...(strictJsonRecording ? { CODEX_PRETTY_JSON: "1" } : {}),
   CODEX_MODEL: process.env.CODEX_MODEL ?? "gpt-5.5",
   CODEX_ATTEMPTS: process.env.CODEX_ATTEMPTS ?? "1",
   CODEX_RETRY_DELAY_MS: process.env.CODEX_RETRY_DELAY_MS ?? "30000",
@@ -50,7 +52,7 @@ const env = {
 };
 
 const startedAt = new Date();
-console.error(`Recording composite Codex TUI + Chrome for ${variant} to ${path.relative(rootDir, outDir)}`);
+console.error(`Recording composite Codex ${strictJsonRecording ? "strict JSONL" : "TUI"} + Chrome for ${variant} to ${path.relative(rootDir, outDir)}`);
 const browserRecorder = spawn(process.execPath, [
   path.join(rootDir, "examples", "real-world-codex-comparison", "record-cdp-screencast.mjs"),
   browserDir

@@ -13,6 +13,7 @@ const model = process.env.CODEX_MODEL || undefined;
 const maxCodexAttempts = Number.parseInt(process.env.CODEX_ATTEMPTS ?? "3", 10);
 const retryDelayMs = Number.parseInt(process.env.CODEX_RETRY_DELAY_MS ?? "30000", 10);
 const humanCodexOutput = process.env.CODEX_HUMAN_OUTPUT === "1";
+const prettyCodexJson = process.env.CODEX_PRETTY_JSON === "1";
 const promptTemplate = await fs.readFile(path.join(experimentDir, "prompt.txt"), "utf8");
 const scriptedProgram = await fs.readFile(path.join(experimentDir, "scripted-repl-task.js"), "utf8");
 
@@ -20,6 +21,7 @@ const visibleChromeConfig = process.env.REAL_WORLD_CHROME_CONFIG
   ? path.resolve(process.env.REAL_WORLD_CHROME_CONFIG)
   : path.join(rootDir, "examples", "chrome-devtools-visible.json");
 const replArtifactDir = path.join(outDir, "mcp2repl-artifacts");
+const replSessionName = `apple-${path.basename(outDir).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 const nativeMcpConfig = process.env.MCP2REPL_CONFIG
   ? path.resolve(process.env.MCP2REPL_CONFIG)
   : visibleChromeConfig;
@@ -125,6 +127,9 @@ for (const variant of variants) {
   const resultPath = path.join(outDir, `${variant.name}.result.txt`);
   const summary = await runCodexVariant(variant, prompt, jsonlPath, resultPath);
   summaries.push(summary);
+  if (variant.mode === "repl") {
+    await stopReplSession(replSessionName);
+  }
   console.error(`${variant.name}: ${summary.usage.total_tokens} total tokens, ${formatSeconds(summary.durationMs)} elapsed`);
 }
 
@@ -148,19 +153,25 @@ function renderPrompt(mode) {
     repl: [
       "The mcp2repl contract is summarized here; do not spend commands reading the skill, docs, source, previous artifacts, or scripted implementations unless a command fails.",
       "Codex has no browser MCP tools. Use shell only to run the local mcp2repl CLI against Chrome MCP. The runner already sets MCP2REPL_CONFIG, MCP2REPL_SERVER, MCP2REPL_SESSION, MCP2REPL_JSON, MCP2REPL_QUIET, MCP2REPL_TIMEOUT, MCP2REPL_MAX_OUTPUT_CHARS, and MCP2REPL_ARTIFACT_DIR.",
-      "Use the shortest evaluator form: `node ./src/cli.js <<'JS' ... JS`. Do not repeat config/session/json/timeout flags. Start immediately with that evaluator command and avoid progress narration between successful steps.",
+      "Use the shortest evaluator form: `node ./src/cli.js -e - <<'JS' ... JS`. Do not repeat config/session/json/timeout flags. This is the only shell command shape allowed in the interactive REPL arm; do not run rg, sed, cat, npm, curl, source inspection, or docs commands. Start immediately with that evaluator command and avoid progress narration between successful steps.",
       "REPL philosophy: MCP tools are primitive procedures, task helpers are compound procedures, the persistent session is the evaluator environment, and artifacts are evaluator memory. Optimize for uniformly fast semantic steps: no setup-only pause, no giant final step, no one shell command per primitive call.",
-      "Required sequence: (1) bootstrap a tiny environment and immediately navigate the current visible tab to https://www.apple.com/; (2) define-and-call one Air observation procedure for MacBook Air overview plus buy page; (3) define-and-call one Pro observation procedure for MacBook Pro overview plus buy/compare/spec fallback; (4) define-and-call final synthesis; at most one focused repair for a required-field failure.",
-      "Step size: bootstrap should stay under 18 nonblank JS lines; later evaluator commands should target 20-45 nonblank JS lines, do 1-3 related browser primitive calls, and return one compact checkpoint. After bootstrap, do not repeat helper bodies or prior procedure bodies. If optional fields make a step long, set them to `unknown`.",
-      "Bootstrap should be only this shape: define `globalThis.appleTask`, `go(url)`, `evalPage(fn,args)`, and `shortFact(text)`, then `await go('https://www.apple.com/')` and `return api.print({ step:'bootstrap', sources: appleTask.sources }, { maxChars: 1000 })`. Do not define price parsers, validators, checkpoint helpers, or product logic in bootstrap. It must already create visible browser motion.",
-      "Use the existing visible Chrome tab. Do not call new_page, list_pages, or select_page unless navigate_page fails. Navigate with `mcp.call('navigate_page', { url })`; evaluate page JavaScript with `api.evalTool('evaluate_script', (args) => { ... }, args)` and wrap uncertain tool outputs with `api.unwrap(...)`.",
+      "Required sequence: (1) bootstrap a tiny environment and immediately navigate the current visible tab to https://www.apple.com/; (2) define-and-call one Air observation procedure for MacBook Air overview plus buy page; (3) define-and-call one Pro observation procedure for MacBook Pro overview plus buy/spec fallback; (4) define-and-call final synthesis. Repair inside the current observation step only if required fields are missing. Once a checkpoint reports `invariantSoFar:true` and empty `missingRequired`, proceed to the next required step immediately; do not run optional compare/spec repairs for nicer fields.",
+      "Step size: bootstrap should stay under 35 nonblank JS lines; later evaluator commands should target 15-35 nonblank JS lines, do 1-3 related browser primitive calls, and return one compact checkpoint. After bootstrap, do not repeat helper bodies or prior procedure bodies. If optional fields make a step long, set them to `unknown`. Prefer one semantic evaluator step over many primitive evaluator calls.",
+      "Bootstrap should define only reusable task-neutral helpers plus the first browser action. Cross-step helpers must be assigned to `globalThis`, not declared as bare `function` or `const`: `globalThis.appleTask`, `globalThis.go = async function(url){...}`, `globalThis.evalPage = async function(fn,args){...}`, `globalThis.shortFact = function(text){...}`, `globalThis.pricesFromText = function(text,min){...}`, `globalThis.missingOption = function(o){...}`. Then `await go('https://www.apple.com/')` and `return api.print({ step:'bootstrap', sources: appleTask.sources }, { maxChars: 1000 })`. `pricesFromText` must parse numeric dollar values >= min, so `$1099` is valid; write `seg.slice(0,48).includes('/mo') === false` instead of using `!`. Do not define product-specific Air/Pro logic in bootstrap. It must already create visible browser motion.",
+      "Important API rule: `mcp` is a global evaluator object. There is no `api.mcp`. Navigate with `mcp.call('navigate_page', { url })`; evaluate page JavaScript with `api.evalTool('evaluate_script', (args) => { ... }, args)` and wrap uncertain tool outputs with `api.unwrap(...)`. If a bootstrap attempt fails because of `api.mcp`, immediately retry with global `mcp` and do not inspect repository source.",
+      "Use the existing visible Chrome tab. Do not call new_page, list_pages, or select_page unless navigate_page fails.",
       "Functions passed to api.evalTool are stringified for the page. They must be self-contained; never pass `(a) => fn(a)` or close over evaluator variables.",
-      "Checkpoints must be compact: `api.print({ step, invariantSoFar, missingRequired, optionsPreview, sources }, { maxChars: 3000, maxString: 120 })`. Keep raw page text, snippets, controls, and arrays in evaluator state or artifacts, not in the transcript. The final synthesis step is different: it must return the final JSON object itself with `api.print(final, { maxChars: 9000, maxString: 500 })`; do not run a separate preview/export command.",
+      "Do not pass evaluator helper functions into page JavaScript. Page functions should return compact text or booleans, then evaluator helpers such as `pricesFromText` should process that returned text in the persistent evaluator environment.",
+      "Process state rule: observation procedures must populate `appleTask.options = { air13, air15, pro14 }` with final-shaped short fields and canonical evidence arrays. These typed option objects are the only allowed source for final synthesis. Keep raw page text, snippets, controls, and arrays in `appleTask.raw` or artifacts, not in option evidence or the transcript.",
+      "Checkpoints must be compact: `api.print({ step, invariantSoFar, missingRequired, optionsPreview: appleTask.options, sources }, { maxChars: 3000, maxString: 120 })`. A checkpoint passes only when required typed fields for that step are already final-shaped. The final synthesis step is different: it must be a pure formatter over `appleTask.options` and `appleTask.sources`, return the final JSON object itself with `api.print(final, { maxChars: 9000, maxString: 500 })`, and must not call browser tools, scan raw text, run regexes over page blobs, or perform a separate preview/export command.",
       "Apple facts: use public US/English Apple pages only; never login, cart, checkout, personal data, curl, wget, Python requests, direct fetches, or browserless scraping. If redirected to country selection, recover in the next evaluator step by resetting/selecting United States.",
-      "Prices: extract whole upfront standard-consumer laptop prices from visible text/control labels; ignore monthly `/mo`, education ribbon, trade-in, AppleCare, delivery, checkout, compare placeholders, and tiny service prices. Avoid dollar regexes and negated shell-sensitive expressions. Use a tiny scanner inside the page function: split text on `String.fromCharCode(36)`, collect leading digits/commas from each segment, keep values with at least four raw characters, reject segments whose first 48 characters include `/mo`, then prefix the dollar sign again.",
+      "Prices: extract whole upfront standard-consumer laptop prices from visible text/control labels; ignore monthly `/mo`, education ribbon, trade-in, AppleCare, delivery, checkout, compare placeholders, and tiny service prices. Avoid dollar regexes and negated shell-sensitive expressions. Use `pricesFromText(text,min)` from bootstrap: split text on `String.fromCharCode(36)`, collect leading digits/commas from each segment, parse the number, keep values >= min, reject segments whose first 48 characters include `/mo`, then prefix the dollar sign again.",
       "Fast price rule: on Air/Pro buy pages, document-order whole-dollar laptop prices are valid when size selectors are visible: first >= $1,000 for 13-inch Air, next/first >= $1,200 for 15-inch Air, and first >= $1,600 for 14-inch Pro. Do not click only to reconfirm a non-missing price.",
+      "For the Pro observation, navigate directly to `https://www.apple.com/us/shop/buy-mac/macbook-pro/14-inch` after the Pro overview page. Use the broader Pro buy page or compare page only if a required Pro field is still missing.",
+      "Required fields are productName, officialUrl, visibleStartingPrice, configuredOrRelevantPrice, chip, memory, storage, and at least two evidence facts. Display, battery, ports, and portability are useful but optional; never run another evaluator command only to improve an optional field.",
       "Typed facts: keep separate buckets for 13-inch Air, 15-inch Air, and 14-inch Pro. Prefer M5 labels. Normalize fields to short facts such as `M5 chip`, `16GB unified memory visible`, `512GB storage visible`, or for Pro `M5 Pro/Max options visible` and `1TB storage visible` if that is the visible minimum-satisfying storage. If the Pro buy/spec pages expose a unified-memory section but hide exact 16GB after one fallback, use `16GB+ unified memory section visible; verify exact capacity before purchase` instead of `unknown` and continue. Unknown is acceptable only for optional display/battery/ports/portability.",
-      "Final answer: synthesize from typed facts, with 2-4 short evidence facts per option. Evidence must be product-specific; Pro evidence must include a Pro cue such as MacBook Pro, Liquid Retina XDR, Thunderbolt, HDMI, SDXC, or M5 Pro/Max; Air evidence must include Air/13-inch/15-inch/MagSafe/18-hour style cues. Every scalar fact and evidence item should stay under 120 characters.",
+      "Canonical evidence rule: each option should store 2-4 product-specific evidence strings during its observation step. Evidence strings must be normalized short facts, not raw copied paragraphs. Good shapes include `13-inch MacBook Air visible`, `15-inch MacBook Air visible`, `M5 chip visible`, `16GB unified memory visible`, `512GB storage visible`, `14-inch MacBook Pro visible`, `Liquid Retina XDR visible`, `Thunderbolt/HDMI/SDXC cues visible`, and `1TB storage visible`. Do not use long testing notes, marketing paragraphs, footer text, or raw configurator sentences as evidence.",
+      "Final answer: synthesize only from `appleTask.options`, with 2-4 short evidence facts per option. Evidence must be product-specific; Pro evidence must include a Pro cue such as MacBook Pro, Liquid Retina XDR, Thunderbolt, HDMI, SDXC, or M5 Pro/Max; Air evidence must include Air/13-inch/15-inch/MagSafe/18-hour style cues. Every scalar fact and evidence item should stay under 120 characters. If `appleTask.options` is complete, final synthesis must return immediately without a follow-up repair step.",
       "Do not hard-code prices, chip names, memory, storage, or evidence. Every non-unknown required fact must come from a checkpoint or evaluator state created in this run.",
       "Do not use curl, wget, Python requests, browserless scraping, or direct network fetches outside Chrome MCP."
     ].join(" "),
@@ -491,7 +502,7 @@ async function runCodexAttempt(variant, prompt, jsonlPath, resultPath) {
       ...(variant.mode === "repl" ? {
         MCP2REPL_CONFIG: visibleChromeConfig,
         MCP2REPL_SERVER: "chrome-devtools",
-        MCP2REPL_SESSION: "apple",
+        MCP2REPL_SESSION: replSessionName,
         MCP2REPL_ARTIFACT_DIR: replArtifactDir,
         MCP2REPL_TIMEOUT: "240",
         MCP2REPL_MAX_OUTPUT_CHARS: process.env.MCP2REPL_MAX_OUTPUT_CHARS ?? "6000",
@@ -506,7 +517,7 @@ async function runCodexAttempt(variant, prompt, jsonlPath, resultPath) {
   let recordedJsonl = "";
   let lineBuffer = "";
   child.stdout.on("data", (chunk) => {
-    process.stderr.write(chunk);
+    if (!prettyCodexJson) process.stderr.write(chunk);
     const text = chunk.toString();
     rawJsonl += text;
     lineBuffer += text;
@@ -514,6 +525,7 @@ async function runCodexAttempt(variant, prompt, jsonlPath, resultPath) {
     while ((newlineIndex = lineBuffer.indexOf("\n")) >= 0) {
       const line = lineBuffer.slice(0, newlineIndex);
       lineBuffer = lineBuffer.slice(newlineIndex + 1);
+      if (prettyCodexJson) writePrettyCodexLine(line);
       recordedJsonl += `${recordJsonlLine(line)}\n`;
     }
   });
@@ -523,12 +535,87 @@ async function runCodexAttempt(variant, prompt, jsonlPath, resultPath) {
     child.on("close", resolve);
   });
   if (lineBuffer) {
+    if (prettyCodexJson) writePrettyCodexLine(lineBuffer);
     recordedJsonl += recordJsonlLine(lineBuffer);
   }
   await fs.writeFile(jsonlPath, recordedJsonl);
   await fs.writeFile(rawJsonlPath(jsonlPath), rawJsonl);
 
   return { code, jsonl: recordedJsonl, rawJsonl };
+}
+
+async function stopReplSession(name) {
+  const result = await runLocalMcp2repl(["--session", name, "--connect-timeout", "1", "--stop"]).catch((error) => ({
+    code: 1,
+    stderr: error.message
+  }));
+  if (result.code !== 0 && !/ENOENT|ECONNREFUSED|not found/i.test(`${result.stderr ?? ""}${result.stdout ?? ""}`)) {
+    console.error(`warning: failed to stop mcp2repl session ${name}: ${result.stderr || result.stdout}`);
+  }
+}
+
+function writePrettyCodexLine(line) {
+  const rendered = formatPrettyCodexLine(line);
+  if (rendered) process.stderr.write(`${rendered}\n`);
+}
+
+function formatPrettyCodexLine(line) {
+  if (!line.trim().startsWith("{")) return line.trim();
+  let event;
+  try {
+    event = JSON.parse(line);
+  } catch {
+    return line.trim();
+  }
+
+  if (event.type === "thread.started") return `codex: thread ${event.thread_id}`;
+  if (event.type === "turn.started") return "codex: turn started";
+  if (event.type === "turn.completed") {
+    const usage = event.usage;
+    if (!usage) return "codex: turn completed";
+    return `codex: turn completed | input ${usage.input_tokens} cached ${usage.cached_input_tokens} output ${usage.output_tokens} reasoning ${usage.reasoning_output_tokens}`;
+  }
+
+  const item = event.item;
+  if (!item) return null;
+  const prefix = event.type === "item.started" ? "started" : "completed";
+  if (item.type === "mcp_tool_call") {
+    return `mcp: ${item.server}/${item.tool} ${prefix}`;
+  }
+  if (item.type === "command_execution") {
+    if (event.type === "item.started") return `exec: ${shortCommand(item.command)} started`;
+    const output = shortOutput(item.aggregated_output);
+    return [
+      `exec: exit ${item.exit_code ?? "?"} ${item.status ?? "completed"}`,
+      output ? indentBlock(output) : null
+    ].filter(Boolean).join("\n");
+  }
+  if (item.type === "agent_message") {
+    return `codex final:\n${indentBlock(shortOutput(item.text, 1800))}`;
+  }
+  return `${item.type}: ${prefix}`;
+}
+
+function shortCommand(command) {
+  return String(command ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/^\/opt\/homebrew\/bin\/zsh -lc /, "")
+    .slice(0, 180);
+}
+
+function shortOutput(output, maxLength = 1400) {
+  const value = String(output ?? "").trim();
+  if (!value) return "";
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}\n...<truncated ${value.length - maxLength} chars>`;
+}
+
+function indentBlock(value) {
+  return String(value)
+    .split(/\r?\n/)
+    .slice(0, 24)
+    .map((line) => `  ${line}`)
+    .join("\n");
 }
 
 function recordJsonlLine(line) {

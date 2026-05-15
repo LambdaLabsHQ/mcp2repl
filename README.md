@@ -14,28 +14,29 @@ run three ways. Pure Chrome MCP is the direct tool-call baseline.
 | Process abstraction | direct tool calls | interactive compound procedures | reusable compound procedure |
 | External validation | pass | pass | pass |
 | Failed transcript items | 0 | 0 | 0 |
-| Total tokens | 2,012,447 | 137,630 | 50,629 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.068x | 0.025x |
-| Token advantage | baseline | 14.62x fewer | 39.75x fewer |
-| Total token reduction | baseline | 93.2% less | 97.5% less |
-| Uncached input + output | 129,951 | 19,998 | 5,829 |
-| Uncached token advantage | baseline | 6.50x fewer | 22.29x fewer |
-| Strict JSONL elapsed | 175.5s | 105.1s | 51.8s |
-| Time vs Pure Chrome MCP | 1.00x | 0.60x | 0.30x |
-| Time advantage | baseline | 1.67x faster | 3.39x faster |
-| Top-level operations | 27 MCP tool calls | 4 evaluator commands | 1 evaluator command |
-| First action | 13.9s | 14.3s | 16.0s |
-| Max action duration | 6.7s | 7.7s | 16.9s |
-| Max gap between actions | 8.5s | 21.6s | 0.0s |
+| Total tokens | 1,289,428 | 292,362 | 98,819 |
+| Total tokens vs Pure Chrome MCP | 1.00x | 0.227x | 0.077x |
+| Token advantage | baseline | 4.41x fewer | 13.05x fewer |
+| Total token reduction | baseline | 77.3% less | 92.3% less |
+| Uncached input + output | 80,852 | 24,842 | 14,339 |
+| Uncached token advantage | baseline | 3.25x fewer | 5.64x fewer |
+| Strict JSONL elapsed | 248.9s | 122.4s | 47.8s |
+| Time vs Pure Chrome MCP | 1.00x | 0.49x | 0.19x |
+| Time advantage | baseline | 2.03x faster | 5.21x faster |
+| Top-level operations | 36 MCP tool calls | 5 evaluator commands | 1 evaluator command |
+| First action | 11.0s | 20.0s | 14.6s |
+| Max action duration | 5.1s | 3.0s | 12.8s |
+| Max gap between actions | 7.6s | 22.3s | 0.0s |
 | Codex MCP injected | yes | no | no |
 | mcp2repl skill installed | no | yes | yes |
 
 All token counts above are parsed from Codex JSONL usage events with the same
 strict accounting path. The interactive REPL run is still exploratory: Codex
 defines and calls small procedures, observes compact checkpoints, and then
-synthesizes the final JSON. The latest run has no repair step and no extra
-export step. It is 1.67x faster overall than Pure Chrome MCP and uses 93.2%
-fewer total tokens because raw browser observations stay inside the evaluator.
+synthesizes the final JSON. The latest visible recording pass has no failed
+steps and no extra source-inspection/export commands. It is 2.03x faster
+overall than Pure Chrome MCP and uses 77.3% fewer total tokens because raw
+browser observations stay inside the evaluator.
 
 [![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
 
@@ -49,11 +50,12 @@ The important difference is the unit of interaction. Pure MCP exposes each
 browser primitive as a top-level agent action. Interactive REPL keeps the
 browser primitives in a persistent evaluator and asks Codex to evaluate one
 right-sized procedure at a time. "Uniformly fast" means the REPL should avoid a
-setup-only pause, avoid a giant final step, and avoid repair churn. In the
-latest strict run, its four evaluator actions all complete within 7.7s; the
-remaining long interval is Codex composing the next procedure, not the evaluator
-waiting on browser primitives. The prewritten path is the amortized endpoint
-after the exploratory procedure has been factored into reusable code.
+setup-only pause, avoid a giant final step, and avoid failed repair churn. In
+the latest visible recording pass, all five evaluator actions complete within
+3.0s; the remaining long interval is Codex composing the next procedure, not
+the evaluator waiting on browser primitives. The prewritten path is the
+amortized endpoint after the exploratory procedure has been factored into
+reusable code.
 
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build

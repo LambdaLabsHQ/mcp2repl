@@ -19,6 +19,7 @@ Research the US English public Apple pages and interact with configurator / comp
 3. https://www.apple.com/mac/compare/
 4. https://www.apple.com/us/shop/buy-mac/macbook-air
 5. https://www.apple.com/us/shop/buy-mac/macbook-pro
+6. https://www.apple.com/us/shop/buy-mac/macbook-pro/14-inch
 
 Important browser-data budget:
 
