@@ -75,26 +75,21 @@ separate final export command. Its remaining non-uniformity is the 21.6s
 model-composition gap between evaluator steps. That gap is not browser work; it
 is Codex writing the next compound procedure.
 
-## Benchmark Replay Video
+## Three-Row Process Video
 
 [![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
 
-The committed video is generated from the same strict Codex JSONL transcripts
-used by the tables above. It puts all three variants on one shared benchmark
-clock and shows:
-
-- Prewritten REPL finishing at 51.8s.
-- Interactive REPL finishing at 105.1s.
-- Pure Chrome MCP continuing until 175.5s.
-- Interactive REPL's four bounded evaluator actions, zero repairs, and no
-  separate final export step.
+The committed video uses the original comparison layout: three rows, each with
+Codex TUI on the left and visible Chrome recording on the right. The rows are
+Pure Chrome MCP, Interactive REPL, and Prewritten REPL. Use the strict JSONL
+tables above for benchmark claims; use the video to inspect the actual process
+shape and browser motion.
 
 Final video artifacts:
 
 - `docs/assets/real-world-time-token-comparison.mp4`: committed README video.
 - `docs/assets/real-world-time-token-comparison.jpg`: committed preview frame.
-- `.tmp/benchmark-video/<timestamp>/benchmark-video.json`: local generation
-  metadata for the latest render.
+- `.tmp/recordings/20260514T220100Z-three-way-comparison/final-time-token-comparison.web.mp4`: local stitched source used for docs.
 
 ## Task
 
@@ -286,17 +281,6 @@ The dashboard recorder reformats Codex output in HTML. The native-only recorder
 captures the real TUI but does not include Chrome. Use the composite recorder
 for comparison videos.
 
-Render the committed speed comparison video from strict JSONL data:
-
-```bash
-npm run render:real-world:benchmark-video -- \
-  --pure .tmp/real-world-codex-comparison/2026-05-14T22-06-31-970Z \
-  --interactive .tmp/real-world-codex-comparison/2026-05-14T22-13-13-600Z \
-  --scripted .tmp/real-world-codex-comparison/2026-05-14T22-15-09-411Z \
-  --out docs/assets/real-world-time-token-comparison.mp4 \
-  --poster docs/assets/real-world-time-token-comparison.jpg
-```
-
 ## Useful Files
 
 - `run.mjs`: experiment runner, Codex isolation, variant setup, usage parsing,
@@ -306,8 +290,6 @@ npm run render:real-world:benchmark-video -- \
 - `scripted-repl-task.js`: prewritten REPL program used by the scripted arm.
 - `record-composite.mjs`: records native Codex TUI and visible Chrome side by
   side.
-- `render-benchmark-video.mjs`: renders the committed shared-clock speed video
-  from strict JSONL run artifacts.
 - `.tmp/real-world-codex-comparison/<timestamp>/summary.md`: per-run summary.
 - `.tmp/real-world-codex-comparison/<timestamp>/*.jsonl`: timestamped Codex
   JSONL transcript for the run.

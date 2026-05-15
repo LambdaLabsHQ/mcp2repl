@@ -17,7 +17,6 @@
     "experiment:chrome": "node ./examples/compare-chrome-experiment.mjs",
     "experiment:real-world": "node ./examples/real-world-codex-comparison/run.mjs",
     "record:real-world": "node ./examples/real-world-codex-comparison/record-variant.mjs",
-    "render:real-world:benchmark-video": "node ./examples/real-world-codex-comparison/render-benchmark-video.mjs",
     "record:real-world:composite": "node ./examples/real-world-codex-comparison/record-composite.mjs",
     "record:real-world:native-tui": "node ./examples/real-world-codex-comparison/record-native-tui.mjs",
     "smoke": "node ./src/cli.js --mock --eval \"var x = 40; x + 2\" && node ./src/cli.js --mock --eval \"await mcp.call('math.add', { a: 20, b: 22 })\" && node ./src/cli.js --mock --library \"add numbers\" --json && node ./src/cli.js --mock --eval \"return { search: api.searchTools('add numbers')[0].name, described: api.describeTool('math.add').name, guide: api.guide('add numbers').tools[0].name, library: /async function math_add/.test(api.library('add numbers')[0]), saved: (await api.saveArtifact('smoke.json', { ok: true })).format }\" && node ./src/cli.js --mock --json --file ./examples/smoke-runtime.js && node ./src/cli.js --mock --json --load ./examples/session-task-module.js && node ./src/cli.js --mock --file ./examples/mock-demo.js",
