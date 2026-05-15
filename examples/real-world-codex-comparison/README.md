@@ -115,6 +115,21 @@ small remote tool turns, while interactive REPL compresses browser work into a
 few evaluator turns and keeps the intermediate browser state out of the model
 transcript.
 
+What the advantage looks like in the video:
+
+| Visible cue | What to look for | What it demonstrates |
+| --- | --- | --- |
+| Earlier freeze | The scripted row freezes first, then the interactive row freezes around 2:03, while pure MCP continues until about 4:09. | REPL finishes the same validated task sooner under the shared video clock. |
+| Fewer terminal turns | Pure MCP keeps printing many `chrome-devtools/evaluate_script` started/completed lines; interactive REPL shows only a handful of `mcp2repl eval` commands. | Procedure abstraction reduces top-level agent actions from 36 MCP calls to 5 evaluator commands. |
+| Clustered Chrome motion | In the interactive row, one evaluator command can navigate, extract, normalize, and checkpoint a product slice before returning. | Browser primitives are composed inside the evaluator instead of crossing the model/tool boundary one by one. |
+| Less transcript churn | The pure MCP terminal repeatedly alternates observation and decision; the interactive terminal mostly shows compact checkpoints and the final JSON. | Large intermediate observations stay in evaluator memory, which is why the JSONL token count is lower. |
+| Similar end state | All rows end on Apple MacBook research pages and pass the external validator. | The speed and token gains do not come from skipping the task or using a different website. |
+
+The video therefore supports the numeric table in a concrete way: the stopwatch
+shows elapsed-time advantage, the terminal scroll shows action-count advantage,
+and the right-side Chrome clusters show the evaluator doing compound work
+between model turns.
+
 Final video artifacts:
 
 - `docs/assets/real-world-time-token-comparison.mp4`: committed README video.

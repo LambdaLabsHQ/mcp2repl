@@ -56,6 +56,15 @@ finishes; the pure MCP row continues until the shared video clock ends. Those
 frozen rows are intentional, so the elapsed-time difference is visible in one
 three-row recording.
 
+The advantage shows up in three visible ways. First, the interactive row
+reaches a final answer around the middle of the video while the pure MCP row is
+still issuing browser tool calls. Second, the interactive terminal has only a
+few `mcp2repl eval` turns, while the pure MCP terminal keeps scrolling through
+many `chrome-devtools/evaluate_script` turns. Third, the Chrome side of the
+interactive row moves in short clusters after each evaluator command, showing
+that multiple browser primitives are being executed inside one compound
+procedure instead of returning every primitive observation to the model.
+
 The important difference is the unit of interaction. Pure MCP exposes each
 browser primitive as a top-level agent action. Interactive REPL keeps the
 browser primitives in a persistent evaluator and asks Codex to evaluate one
