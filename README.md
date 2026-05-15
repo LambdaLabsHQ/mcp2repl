@@ -9,15 +9,7 @@ On a no-login Apple US/English shopping research task, the same Codex prompt was
 run three ways: direct Chrome MCP, interactive mcp2repl, and a prewritten
 mcp2repl procedure.
 
-<video
-  src="docs/assets/real-world-time-token-comparison.mp4"
-  controls
-  muted
-  playsinline
-  width="100%">
-</video>
-
-[Open the comparison video](docs/assets/real-world-time-token-comparison.mp4)
+https://github.com/user-attachments/assets/6f148216-9284-4ef5-9336-c928354098bf
 
 The embedded video is accelerated to 2x playback to keep the README concise.
 The elapsed labels over Chrome still show the original run clock. It is the

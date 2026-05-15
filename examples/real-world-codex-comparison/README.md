@@ -78,9 +78,10 @@ procedure.
 
 ## Three-Row Process Video
 
-[![Three-way Codex browser task comparison](../../docs/assets/real-world-time-token-comparison.jpg)](../../docs/assets/real-world-time-token-comparison.mp4)
+https://github.com/user-attachments/assets/6f148216-9284-4ef5-9336-c928354098bf
 
-The committed video is a 2x playback copy of the original comparison layout:
+The README embeds the GitHub issue attachment above. The committed mp4 is the
+same 2x playback copy of the original comparison layout:
 three rows, each with Codex TUI on the left and visible Chrome recording on the
 right. The rows are Pure Chrome MCP, Interactive REPL, and Prewritten REPL. Use
 the strict JSONL tables above for benchmark claims; use the video to inspect
