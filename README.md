@@ -5,76 +5,37 @@ The mental model is procedure abstraction: MCP tools become primitive
 procedures, agents define small compound procedures, and each REPL step
 evaluates one expression against a persistent environment.
 
-On a no-login Apple US/English shopping research task, the same Codex task was
-run three ways. Pure Chrome MCP is the direct tool-call baseline.
+On a no-login Apple US/English shopping research task, the same Codex prompt was
+run three ways: direct Chrome MCP, interactive mcp2repl, and a prewritten
+mcp2repl procedure.
 
-| Metric | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
+<video
+  src="docs/assets/real-world-time-token-comparison.mp4"
+  controls
+  muted
+  playsinline
+  width="100%">
+</video>
+
+[Open the comparison video](docs/assets/real-world-time-token-comparison.mp4)
+
+The embedded video is the three-row comparison: Codex process on the left,
+visible Chrome on the right. The middle row finishes while the pure MCP row is
+still issuing browser tool calls. That is the core difference: mcp2repl lets an
+agent compose multiple MCP primitives into one evaluator step.
+
+| Result | Pure Chrome MCP | Interactive REPL | Prewritten REPL |
 | --- | ---: | ---: | ---: |
-| Token source | Codex JSONL transcript | Codex JSONL transcript | Codex JSONL transcript |
-| Process abstraction | direct tool calls | interactive compound procedures | reusable compound procedure |
+| Elapsed time | 248.9s | 122.4s, 2.03x faster | 47.8s, 5.21x faster |
+| Total tokens | 1.29M | 292k, 77.3% less | 98.8k, 92.3% less |
+| Top-level actions | 36 MCP calls | 5 evaluator steps | 1 evaluator step |
 | External validation | pass | pass | pass |
-| Failed transcript items | 0 | 0 | 0 |
-| Total tokens | 1,289,428 | 292,362 | 98,819 |
-| Total tokens vs Pure Chrome MCP | 1.00x | 0.227x | 0.077x |
-| Token advantage | baseline | 4.41x fewer | 13.05x fewer |
-| Total token reduction | baseline | 77.3% less | 92.3% less |
-| Uncached input + output | 80,852 | 24,842 | 14,339 |
-| Uncached token advantage | baseline | 3.25x fewer | 5.64x fewer |
-| Strict JSONL elapsed | 248.9s | 122.4s | 47.8s |
-| Time vs Pure Chrome MCP | 1.00x | 0.49x | 0.19x |
-| Time advantage | baseline | 2.03x faster | 5.21x faster |
-| Top-level operations | 36 MCP tool calls | 5 evaluator commands | 1 evaluator command |
-| First action | 11.0s | 20.0s | 14.6s |
-| Max action duration | 5.1s | 3.0s | 12.8s |
-| Max gap between actions | 7.6s | 22.3s | 0.0s |
-| Codex MCP injected | yes | no | no |
-| mcp2repl skill installed | no | yes | yes |
 
-All token counts above are parsed from Codex JSONL usage events with the same
-strict accounting path. The interactive REPL run is still exploratory: Codex
-defines and calls small procedures, observes compact checkpoints, and then
-synthesizes the final JSON. The latest visible recording pass has no failed
-steps and no extra source-inspection/export commands. It is 2.03x faster
-overall than Pure Chrome MCP and uses 77.3% fewer total tokens because raw
-browser observations stay inside the evaluator.
-
-[![Three-way Codex browser task comparison](docs/assets/real-world-time-token-comparison.jpg)](docs/assets/real-world-time-token-comparison.mp4)
-
-Click the preview to open the three-row process comparison video. Each row keeps
-the original format: Codex TUI on the left and visible Chrome recording on the
-right. The rows are Pure Chrome MCP, Interactive REPL, and Prewritten REPL. The
-table above is the strict JSONL benchmark source; the video is for visually
-checking the process shape and relative pacing.
-
-Read the video by operation shape, not by pixel-perfect page equality. Pure MCP
-keeps issuing many top-level `evaluate_script` calls while Chrome often appears
-still, because observation itself is the work. Interactive REPL shows fewer,
-larger evaluator bursts: Codex writes a compound procedure, Chrome performs a
-small cluster of page actions, then Codex decides the next procedure. The
-scripted row finishes first and freezes; the interactive row freezes after it
-finishes; the pure MCP row continues until the shared video clock ends. Those
-frozen rows are intentional, so the elapsed-time difference is visible in one
-three-row recording.
-
-The advantage shows up in three visible ways. First, the interactive row
-reaches a final answer around the middle of the video while the pure MCP row is
-still issuing browser tool calls. Second, the interactive terminal has only a
-few `mcp2repl eval` turns, while the pure MCP terminal keeps scrolling through
-many `chrome-devtools/evaluate_script` turns. Third, the Chrome side of the
-interactive row moves in short clusters after each evaluator command, showing
-that multiple browser primitives are being executed inside one compound
-procedure instead of returning every primitive observation to the model.
-
-The important difference is the unit of interaction. Pure MCP exposes each
-browser primitive as a top-level agent action. Interactive REPL keeps the
-browser primitives in a persistent evaluator and asks Codex to evaluate one
-right-sized procedure at a time. "Uniformly fast" means the REPL should avoid a
-setup-only pause, avoid a giant final step, and avoid failed repair churn. In
-the latest visible recording pass, all five evaluator actions complete within
-3.0s; the remaining long interval is Codex composing the next procedure, not
-the evaluator waiting on browser primitives. The prewritten path is the
-amortized endpoint after the exploratory procedure has been factored into
-reusable code.
+The video makes the advantage visible: pure MCP scrolls through many
+`evaluate_script` turns, interactive REPL moves Chrome in short bursts after
+each `mcp2repl eval`, and shorter rows freeze when they finish under the shared
+clock. The full prompt, raw JSONL accounting, reproduction steps, and detailed
+tables are in [the real-world comparison notes](examples/real-world-codex-comparison/README.md).
 
 MCP exposes tools as remote actions. MCP-2-REPL imports those tools as
 primitive procedures into a persistent JavaScript evaluator, so agents can build
